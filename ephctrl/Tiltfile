@@ -1,0 +1,5 @@
+docker_build(
+  'cluster-bootstrapper',
+  '.')
+
+k8s_yaml('pod.yaml')
