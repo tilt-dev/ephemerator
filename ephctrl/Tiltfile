@@ -1,5 +1,28 @@
+load('ext://restart_process', 'docker_build_with_restart')
+
 docker_build(
   'cluster-bootstrapper',
-  '.')
+  '.',
+  dockerfile='./cluster-bootstrapper.dockerfile',
+  match_in_env_vars=True)
 
-k8s_yaml('pod.yaml')
+local_resource(
+  'ephctrl-compile',
+  'make build-static',
+  deps=['./cmd', './pkg'])
+
+docker_build_with_restart(
+  'ephctrl',
+  '.',
+  entrypoint='/usr/local/bin/ephctrl',
+  dockerfile='ephctrl.dockerfile',
+  only=[
+    './build/ephctrl',
+  ],
+  live_update=[
+    sync('./build/ephctrl', '/usr/local/bin/ephctrl'),
+  ]
+)
+
+k8s_yaml('ephctrl.yaml')
+k8s_resource('ephctrl', port_forwards=['9443:9443'])
