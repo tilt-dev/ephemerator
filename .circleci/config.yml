@@ -1,0 +1,23 @@
+version: 2.1
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: gcr.io/windmill-test-containers/ephemerator-ci
+    steps:
+      - checkout
+      - run:
+          name: lint
+          command: cd ephctrl && make lint
+      - setup_remote_docker:
+          version: 20.10.6
+      - run:
+          name: cluster-test
+          command: |
+            ctlptl create cluster kind --registry=ctlptl-registry
+            cd ephctrl && tilt ci
+
+workflows:
+  test:
+    jobs:
+      - build

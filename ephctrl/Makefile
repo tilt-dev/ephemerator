@@ -1,5 +1,8 @@
 .PHONY: install
 
+lint:
+	golangci-lint run -v --timeout 180s
+
 install:
 	go get ./...
 	go install ./cmd/ephctrl
