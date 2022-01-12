@@ -117,6 +117,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 	}
 
+	_ = pod
+
 	return reconcile.Result{}, nil
 }
 
