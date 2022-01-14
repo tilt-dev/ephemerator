@@ -52,8 +52,10 @@ spec:
       - image: ephctrl
         name: ephctrl
         env:
-        - name: 'CLUSTER_BOOTSTRAPPER_IMAGE'
-          value: 'cluster-bootstrapper'
+        - name: 'DIND_IMAGE'
+          value: 'ephctrl-dind'
+        - name: 'TILT_UPPER_IMAGE'
+          value: 'ephctrl-tilt-upper'
           
         securityContext:
           allowPrivilegeEscalation: false
