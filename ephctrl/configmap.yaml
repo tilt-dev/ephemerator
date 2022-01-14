@@ -5,6 +5,6 @@ metadata:
   labels:
     app.kubernetes.io/part-of: ephemerator.tilt.dev
 data:
-  repo: https://github.com/tilt-dev/tilt.build
-  path: .
+  repo: https://github.com/tilt-dev/tilt-example-html
+  path: 0-base
   branch: master
