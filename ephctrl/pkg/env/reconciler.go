@@ -215,6 +215,29 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 			{
 				Name:  "tilt-upper",
 				Image: os.Getenv("TILT_UPPER_IMAGE"),
+				Env: []v1.EnvVar{
+					{
+						Name:  "TILT_UPPER_REPO",
+						Value: cm.Data["repo"],
+					},
+					{
+						Name:  "TILT_UPPER_PATH",
+						Value: cm.Data["path"],
+					},
+					{
+						Name:  "TILT_UPPER_BRANCH",
+						Value: cm.Data["branch"],
+					},
+				},
+				ReadinessProbe: &v1.Probe{
+					ProbeHandler: v1.ProbeHandler{
+						Exec: &v1.ExecAction{
+							Command: []string{"python3", "tilt-healthcheck.py"},
+						},
+					},
+					TimeoutSeconds: 2,
+					PeriodSeconds:  5,
+				},
 				VolumeMounts: []v1.VolumeMount{
 					{
 						Name:      "dind-socket",
