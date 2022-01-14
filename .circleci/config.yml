@@ -14,8 +14,8 @@ jobs:
       - run:
           name: cluster-test
           command: |
-            ctlptl create cluster kind --registry=ctlptl-registry
-            cd ephctrl && tilt ci
+            ctlptl apply -f ephctrl/cluster.yaml
+            cd ephctrl && timeout 400 tilt ci
 
 workflows:
   test:

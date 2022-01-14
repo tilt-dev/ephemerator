@@ -41,11 +41,11 @@ and creates the environments.
 
 `ephdash` - A dashboard where users manage their environments.
 
-`ephingress` - The ingress that routes traffic to each environment.
+`ephgateway` - The ingress that routes traffic to each environment.
   
 The servers need the following permissions:
 
-`ephctrl` - Read/write access on Deployments, Ingresses, and ConfigMaps in its own namespace.
+`ephctrl` - Read/write access on Deployments, Services, Ingresses, and ConfigMaps in its own namespace.
 
 `ephdash` - Read/write access on ConfigMaps in its own namespace.
 
