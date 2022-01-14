@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,10 +32,11 @@ var (
 
 type Reconciler struct {
 	client client.Client
+	scheme *runtime.Scheme
 }
 
-func NewReconciler(client client.Client) *Reconciler {
-	return &Reconciler{client: client}
+func NewReconciler(client client.Client, scheme *runtime.Scheme) *Reconciler {
+	return &Reconciler{client: client, scheme: scheme}
 }
 
 func (r *Reconciler) CreateBuilder(mgr ctrl.Manager) (*builder.Builder, error) {
@@ -104,18 +105,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, fmt.Errorf("Cannot touch conficting pod")
 	}
 
-	pod, err = r.maybeDeletePod(ctx, log, pod, cm)
+	pod, err = r.maybeDeletePod(ctx, pod, cm)
 	if err != nil {
-		return reconcile.Result{}, err
+		return reconcile.Result{}, fmt.Errorf("deleting pod: %v", err)
 	}
 
-	needsCreate := pod.Name == ""
+	needsCreate := pod.Name == "" && cm.Name != ""
 	if needsCreate {
 		pod, err = r.createPod(ctx, cm)
 		if err != nil {
-			return reconcile.Result{}, err
+			return reconcile.Result{}, fmt.Errorf("creating pod: %v", err)
 		}
 	}
+
+	// When the pod is running,
 
 	_ = pod
 
@@ -139,6 +142,7 @@ func (r *Reconciler) createAnnotation(cm *v1.ConfigMap) (string, error) {
 // Create the pod with the parameters specified
 // in the given configmap.
 func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, error) {
+	log := log.FromContext(ctx)
 	configAnnoValue, err := r.createAnnotation(cm)
 	if err != nil {
 		return nil, fmt.Errorf("serializing configmap: %v", err)
@@ -174,11 +178,17 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 					EmptyDir: &v1.EmptyDirVolumeSource{},
 				},
 			},
+			{
+				Name: "dind-socket",
+				VolumeSource: v1.VolumeSource{
+					EmptyDir: &v1.EmptyDirVolumeSource{},
+				},
+			},
 		},
 		Containers: []v1.Container{
 			{
-				Name:  "cluster-bootstrapper",
-				Image: os.Getenv("CLUSTER_BOOTSTRAPPER_IMAGE"),
+				Name:  "dind",
+				Image: os.Getenv("DIND_IMAGE"),
 				SecurityContext: &v1.SecurityContext{
 					Privileged: &privileged,
 				},
@@ -195,6 +205,20 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 					{
 						Name:      "dind-storage",
 						MountPath: "/var/lib/docker",
+					},
+					{
+						Name:      "dind-socket",
+						MountPath: "/run",
+					},
+				},
+			},
+			{
+				Name:  "tilt-upper",
+				Image: os.Getenv("TILT_UPPER_IMAGE"),
+				VolumeMounts: []v1.VolumeMount{
+					{
+						Name:      "dind-socket",
+						MountPath: "/run",
 					},
 				},
 			},
@@ -216,12 +240,19 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 		Spec: spec,
 	}
 
+	err = ctrl.SetControllerReference(cm, pod, r.scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("creating pod")
 	return pod, r.client.Create(ctx, pod)
 }
 
 // Determine if there's any mismatch between the pod and its owner config,
 // deleting if necessary.
-func (r *Reconciler) maybeDeletePod(ctx context.Context, log logr.Logger, pod *v1.Pod, owner *v1.ConfigMap) (*v1.Pod, error) {
+func (r *Reconciler) maybeDeletePod(ctx context.Context, pod *v1.Pod, owner *v1.ConfigMap) (*v1.Pod, error) {
+	log := log.FromContext(ctx)
 	needsDelete := false
 	if pod.Name != "" && owner.Name == "" {
 		// If the configmap has been deleted, and the pod has not been, delete the pod.
@@ -255,5 +286,5 @@ func (r *Reconciler) maybeDeletePod(ctx context.Context, log logr.Logger, pod *v
 // sure the pod is getting cleaned up correctly (since it's talking directly
 // to the docker socket).
 func (r *Reconciler) deletePod(ctx context.Context, pod *v1.Pod) error {
-	return r.client.Delete(ctx, pod)
+	return client.IgnoreNotFound(r.client.Delete(ctx, pod))
 }

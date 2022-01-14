@@ -1,9 +1,15 @@
 load('ext://restart_process', 'docker_build_with_restart')
 
 docker_build(
-  'cluster-bootstrapper',
+  'ephctrl-dind',
   '.',
-  dockerfile='./cluster-bootstrapper.dockerfile',
+  dockerfile='./dind.dockerfile',
+  match_in_env_vars=True)
+
+docker_build(
+  'ephctrl-tilt-upper',
+  '.',
+  dockerfile='./tilt-upper.dockerfile',
   match_in_env_vars=True)
 
 local_resource(
@@ -26,3 +32,9 @@ docker_build_with_restart(
 
 k8s_yaml('ephctrl.yaml')
 k8s_resource('ephctrl', port_forwards=['9443:9443'])
+
+k8s_custom_deploy(
+  name='nicks-env',
+  apply_cmd='kubectl apply -f configmap.yaml -o yaml',
+  delete_cmd='kubectl delete -f configmap.yaml',
+  deps=['configmap.yaml'])
