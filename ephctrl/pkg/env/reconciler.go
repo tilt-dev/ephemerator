@@ -21,13 +21,14 @@ import (
 )
 
 var (
-	appKey    = "app.kubernetes.io/part-of"
-	appValue  = "ephemerator.tilt.dev"
-	nameKey   = "app.kubernetes.io/name"
-	nameValue = "cluster-bootstrapper"
-	ownerKey  = ".metadata.controller"
-	apiGVStr  = "v1"
-	configKey = "ephemerator.tilt.dev/configmap"
+	appKey          = "app.kubernetes.io/part-of"
+	appValue        = "ephemerator.tilt.dev"
+	nameKey         = "app.kubernetes.io/name"
+	nameValue       = "ephrunner"
+	ephOwnerNameKey = "ephemerator.tilt.dev/owner-name"
+	ownerKey        = ".metadata.controller"
+	apiGVStr        = "v1"
+	configKey       = "ephemerator.tilt.dev/configmap"
 )
 
 type Reconciler struct {
@@ -253,8 +254,9 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 			Name:      cm.Name,
 			Namespace: cm.Namespace,
 			Labels: map[string]string{
-				appKey:  appValue,
-				nameKey: nameValue,
+				appKey:          appValue,
+				nameKey:         nameValue,
+				ephOwnerNameKey: cm.Name,
 			},
 			Annotations: map[string]string{
 				configKey: configAnnoValue,

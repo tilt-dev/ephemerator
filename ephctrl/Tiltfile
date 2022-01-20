@@ -1,5 +1,18 @@
 load('ext://restart_process', 'docker_build_with_restart')
 
+ingress_yaml = 'https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml'
+k8s_custom_deploy(
+  'ingress-nginx',
+  # Only return the deployment. See:
+  # https://github.com/tilt-dev/tilt/issues/5394
+  apply_cmd="""
+set -ex
+kubectl apply -f %s 1>&2
+kubectl get deployment ingress-nginx-controller -n ingress-nginx -o yaml
+""" % ingress_yaml,
+  delete_cmd='kubectl delete -f %s -o yaml' % ingress_yaml,
+  deps=[])
+
 docker_build(
   'ephctrl-dind',
   '.',
@@ -31,6 +44,8 @@ docker_build_with_restart(
 )
 
 k8s_yaml('ephctrl.yaml')
+k8s_yaml('service.yaml')
+k8s_yaml('ingress.yaml')
 k8s_resource('ephctrl', port_forwards=['9443:9443'])
 
 k8s_custom_deploy(

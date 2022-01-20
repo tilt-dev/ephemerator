@@ -1,6 +1,22 @@
+# Create a kind cluster with a registry and an ingress.
+# Adapted from https://kind.sigs.k8s.io/docs/user/ingress/
 apiVersion: ctlptl.dev/v1alpha1
 kind: Cluster
-product: minikube
+product: kind
 registry: ctlptl-registry
-minikube:
-  containerRuntime: "docker"
+kindV1Alpha4Cluster:
+  nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+    - |
+      kind: InitConfiguration
+      nodeRegistration:
+        kubeletExtraArgs:
+          node-labels: "ingress-ready=true"
+    extraPortMappings:
+    - containerPort: 80
+      hostPort: 80
+      protocol: TCP
+    - containerPort: 443
+      hostPort: 443
+      protocol: TCP

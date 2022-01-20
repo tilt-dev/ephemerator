@@ -32,4 +32,4 @@ cd "$TILT_UPPER_PATH"
 
 ctlptl create registry ctlptl-registry --port=5000
 ctlptl create cluster kind --registry=ctlptl-registry
-tilt up
+tilt up --host=0.0.0.0
