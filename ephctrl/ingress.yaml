@@ -2,16 +2,12 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ephgateway
+  labels:
+    app.kubernetes.io/part-of: ephemerator.tilt.dev
 spec:
   ingressClassName: nginx
-  rules:
-  - host: tilt.nicks-env.localhost
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: nicks-env
-            port:
-              number: 10350
+  defaultBackend:
+    service:
+      name: ephdash
+      port:
+        number: 8000
