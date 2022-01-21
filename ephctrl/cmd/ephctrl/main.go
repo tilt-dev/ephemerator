@@ -52,6 +52,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	gr := env.NewGatewayReconciler(mgr)
+	err = gr.AddToManager(mgr)
+	if err != nil {
+		l.Error(err, "controller setup failed")
+		os.Exit(1)
+	}
+
 	l.Info("starting manager")
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
 		l.Error(err, "manager start failed")
