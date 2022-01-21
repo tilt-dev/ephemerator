@@ -12,16 +12,6 @@ spec:
         path: "/"
         backend:
           service:
-            name: ephrunner-nicks-env
+            name: nicks-env
             port:
               number: 10350
-  - host: 8000.nicks-env.localhost
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: ephrunner-nicks-env
-            port:
-              number: 8000

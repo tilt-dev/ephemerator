@@ -44,7 +44,6 @@ docker_build_with_restart(
 )
 
 k8s_yaml('ephctrl.yaml')
-k8s_yaml('service.yaml')
 k8s_yaml('ingress.yaml')
 k8s_resource('ephctrl', port_forwards=['9443:9443'])
 
