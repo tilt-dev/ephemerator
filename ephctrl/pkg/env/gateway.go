@@ -2,10 +2,13 @@ package env
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -28,9 +31,10 @@ type GatewayReconciler struct {
 	gateways map[types.NamespacedName]bool
 }
 
-func NewGatewayReconciler(cluster Cluster) *Reconciler {
-	return &Reconciler{
-		cluster: cluster,
+func NewGatewayReconciler(cluster Cluster) *GatewayReconciler {
+	return &GatewayReconciler{
+		cluster:  cluster,
+		gateways: make(map[types.NamespacedName]bool),
 	}
 }
 
@@ -68,12 +72,13 @@ func (r *GatewayReconciler) client() client.Client {
 	return r.cluster.GetClient()
 }
 
+// Make sure the rules match
 func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	log := log.FromContext(ctx)
-	log.Info("reconciling")
+	log.Info("reconciling ingress")
 
 	nn := req.NamespacedName
 
@@ -89,5 +94,91 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 	r.gateways[nn] = true
 
+	svcs, err := r.services(ctx)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	rules := r.desiredRules(svcs)
+
+	if !equality.Semantic.DeepEqual(ing.Spec.Rules, rules) {
+		update := ing.DeepCopy()
+		update.Spec.Rules = rules
+		err := r.client().Update(ctx, update)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		log.Info(fmt.Sprintf("updated gateway with %d hosts for %d services", len(rules), len(svcs)))
+	}
+
 	return reconcile.Result{}, nil
+}
+
+// Convert the services into a set of ingress rules.
+func (r *GatewayReconciler) desiredRules(svcs []v1.Service) []networkingv1.IngressRule {
+	rules := []networkingv1.IngressRule{}
+	prefix := networkingv1.PathTypePrefix
+	for _, svc := range svcs {
+		for _, port := range svc.Spec.Ports {
+			subdomain := fmt.Sprintf("%d", port.Port)
+			if port.Port == 10350 {
+				subdomain = "tilt"
+			}
+
+			rules = append(rules, networkingv1.IngressRule{
+				Host: fmt.Sprintf("%s.%s.localhost", subdomain, svc.Name),
+				IngressRuleValue: networkingv1.IngressRuleValue{
+					HTTP: &networkingv1.HTTPIngressRuleValue{
+						Paths: []networkingv1.HTTPIngressPath{
+							{
+								Path:     "/",
+								PathType: &prefix,
+								Backend: networkingv1.IngressBackend{
+									Service: &networkingv1.IngressServiceBackend{
+										Name: svc.Name,
+										Port: networkingv1.ServiceBackendPort{
+											Number: port.Port,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+		}
+	}
+	return rules
+}
+
+// Fetch all the services that need ingress host names assigned.
+//
+// The set is guaranteed to be stable.
+func (r *GatewayReconciler) services(ctx context.Context) ([]v1.Service, error) {
+	userLS := labels.SelectorFromSet(labels.Set{appKey: appValue, nameKey: nameValue})
+	continueToken := ""
+
+	result := []v1.Service{}
+	for {
+		var list v1.ServiceList
+		err := r.client().List(ctx, &list, &client.ListOptions{
+			Continue:      continueToken,
+			LabelSelector: userLS,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, list.Items...)
+
+		if list.Continue == "" {
+			sort.Slice(result, func(i, j int) bool {
+				return result[i].Name < result[j].Name
+			})
+
+			return result, nil
+		}
+
+		continueToken = list.Continue
+	}
 }
