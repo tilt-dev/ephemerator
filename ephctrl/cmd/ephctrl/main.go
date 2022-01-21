@@ -45,13 +45,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	r := env.NewReconciler(mgr.GetClient(), s)
-	b, err := r.CreateBuilder(mgr)
-	if err != nil {
-		l.Error(err, "controller setup failed")
-		os.Exit(1)
-	}
-	err = b.Complete(r)
+	r := env.NewReconciler(mgr)
+	err = r.AddToManager(mgr)
 	if err != nil {
 		l.Error(err, "controller setup failed")
 		os.Exit(1)
