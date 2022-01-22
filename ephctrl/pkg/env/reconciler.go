@@ -6,13 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 
+	"github.com/tilt-dev/tilt/pkg/apis/core/v1alpha1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,13 +43,20 @@ type Cluster interface {
 }
 
 type Reconciler struct {
-	cluster Cluster
+	cluster   Cluster
+	clientset *kubernetes.Clientset
 }
 
-func NewReconciler(cluster Cluster) *Reconciler {
-	return &Reconciler{
-		cluster: cluster,
+func NewReconciler(cluster Cluster) (*Reconciler, error) {
+	clientset, err := kubernetes.NewForConfig(cluster.GetConfig())
+	if err != nil {
+		return nil, err
 	}
+
+	return &Reconciler{
+		cluster:   cluster,
+		clientset: clientset,
+	}, nil
 }
 
 func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
@@ -117,23 +130,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 	}
 
-	service, err = r.maybeDeleteService(ctx, service, cm)
+	desiredSvc, err := r.desiredService(ctx, cm, pod)
 	if err != nil {
-		return reconcile.Result{}, fmt.Errorf("deleting service: %v", err)
+		return reconcile.Result{}, fmt.Errorf("connecting service: %v", err)
 	}
 
-	needsService := service.Name == "" && cm.Name != "" &&
-		pod.Name != "" && pod.Status.Phase == v1.PodRunning
-	if needsService {
-		err = r.createService(ctx, cm)
-		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("creating servoce: %v", err)
-		}
+	err = r.maybeUpdateService(ctx, service, desiredSvc)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("reconciling service: %v", err)
 	}
-
-	// When the pod is running,
-
-	_ = pod
 
 	return reconcile.Result{}, nil
 }
@@ -326,16 +331,12 @@ func (r *Reconciler) deletePod(ctx context.Context, pod *v1.Pod) error {
 	return client.IgnoreNotFound(r.client().Delete(ctx, pod))
 }
 
-/*
 // Once the pod is healthy, `tilt get uiresources` should give us a list of
 // endpoints that need port-forwarding.
-func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int, error) {
+func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int32, error) {
 	cmd := []string{"tilt", "get", "uiresources", "-o", "json"}
-	restClient, err := rest.RESTClientFor(r.cluster.GetConfig())
-	if err != nil {
-		return nil, err
-	}
-	req := restClient.Post().
+	log.FromContext(ctx).Info(fmt.Sprintf("running in pod: %s", cmd))
+	req := r.clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Namespace(pod.Namespace).
 		Name(pod.Name).
@@ -346,7 +347,7 @@ func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int, er
 		Command:   cmd,
 		Stdin:     false,
 		Stdout:    true,
-		Stderr:    false,
+		Stderr:    true,
 	}, scheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(r.cluster.GetConfig(), "POST", req.URL())
@@ -355,23 +356,60 @@ func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int, er
 	}
 
 	stdout := bytes.NewBuffer(nil)
+	stderr := bytes.NewBuffer(nil)
 
 	err = exec.Stream(remotecommand.StreamOptions{
-		Stdin:  bytes.NewBuffer(nil),
+		Stdin:  nil,
 		Stdout: stdout,
-		Stderr: bytes.NewBuffer(nil),
+		Stderr: stderr,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	decoder := json.NewDecoder(stdout)
-	_ = decoder
-	return nil, nil
-}
-*/
+	var uiResourceList v1alpha1.UIResourceList
+	err = decoder.Decode(&uiResourceList)
+	if err != nil {
+		return nil, err
+	}
 
-func (r *Reconciler) createService(ctx context.Context, cm *v1.ConfigMap) error {
+	// Default tilt port.
+	ports := []int32{10350}
+	for _, uiResource := range uiResourceList.Items {
+		for _, link := range uiResource.Status.EndpointLinks {
+			var port int32
+			_, err := fmt.Sscanf(link.URL, "http://0.0.0.0:%d/", &port)
+			if err != nil || port == 0 {
+				continue
+			}
+			ports = append(ports, port)
+		}
+	}
+
+	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
+	return ports, nil
+}
+
+func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *v1.Pod) (*v1.Service, error) {
+	if cm.Name == "" || pod.Name == "" || pod.Status.Phase != v1.PodRunning {
+		return nil, nil
+	}
+
+	ports, err := r.determinePorts(ctx, pod)
+	if err != nil {
+		return nil, err
+	}
+
+	servicePorts := []v1.ServicePort{}
+	for _, p := range ports {
+		servicePorts = append(servicePorts, v1.ServicePort{
+			Name:     fmt.Sprintf("tcp-%d", p),
+			Protocol: "TCP",
+			Port:     p,
+		})
+	}
+
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cm.Name,
@@ -387,42 +425,41 @@ func (r *Reconciler) createService(ctx context.Context, cm *v1.ConfigMap) error 
 				nameKey:         nameValue,
 				ephOwnerNameKey: cm.Name,
 			},
-			Ports: []v1.ServicePort{
-				{
-					Name:     "tcp-10350",
-					Protocol: "TCP",
-					Port:     10350,
-				},
-			},
+			Ports: servicePorts,
 		},
 	}
 
-	err := ctrl.SetControllerReference(cm, svc, r.cluster.GetScheme())
+	err = ctrl.SetControllerReference(cm, svc, r.cluster.GetScheme())
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	log.FromContext(ctx).Info("creating service")
-	return r.client().Create(ctx, svc)
+	return svc, nil
 }
 
-// Determine if there's any mismatch between the service and its owner config,
-// deleting if necessary.
-func (r *Reconciler) maybeDeleteService(ctx context.Context, service *v1.Service, owner *v1.ConfigMap) (*v1.Service, error) {
-	log := log.FromContext(ctx)
-	needsDelete := false
-	if service.Name != "" && owner.Name == "" {
-		// If the configmap has been deleted, and the pod has not been, delete the pod.
-		log.Info("deleting service because configmap was deleted")
-		needsDelete = true
+// Reconcile the desired service spec with the current service.
+func (r *Reconciler) maybeUpdateService(ctx context.Context, current, desired *v1.Service) error {
+	currentMissing := current == nil || current.Name == ""
+	desiredMissing := desired == nil || desired.Name == ""
+	if currentMissing && desiredMissing {
+		return nil
 	}
 
-	if needsDelete {
-		err := client.IgnoreNotFound(r.client().Delete(ctx, service))
-		if err != nil {
-			return nil, err
-		}
-		service = &v1.Service{}
+	if desiredMissing {
+		log.FromContext(ctx).Info("deleting service")
+		return client.IgnoreNotFound(r.client().Delete(ctx, current))
 	}
-	return service, nil
+
+	if currentMissing {
+		log.FromContext(ctx).Info("creating service")
+		return r.client().Create(ctx, desired)
+	}
+
+	if equality.Semantic.DeepEqual(desired.Spec.Ports, current.Spec.Ports) {
+		return nil
+	}
+
+	log.FromContext(ctx).Info("updating service")
+	update := current.DeepCopy()
+	update.Spec.Ports = desired.Spec.Ports
+	return r.client().Update(ctx, update)
 }
