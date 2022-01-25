@@ -5,8 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/tilt-dev/tilt/pkg/apis/core/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -45,9 +50,10 @@ type Cluster interface {
 type Reconciler struct {
 	cluster   Cluster
 	clientset *kubernetes.Clientset
+	allowlist *Allowlist
 }
 
-func NewReconciler(cluster Cluster) (*Reconciler, error) {
+func NewReconciler(cluster Cluster, allowlist *Allowlist) (*Reconciler, error) {
 	clientset, err := kubernetes.NewForConfig(cluster.GetConfig())
 	if err != nil {
 		return nil, err
@@ -56,26 +62,21 @@ func NewReconciler(cluster Cluster) (*Reconciler, error) {
 	return &Reconciler{
 		cluster:   cluster,
 		clientset: clientset,
+		allowlist: allowlist,
 	}, nil
 }
 
 func (r *Reconciler) AddToManager(mgr ctrl.Manager) error {
-	adminLS := metav1.SetAsLabelSelector(labels.Set{appKey: appValue})
-	adminPred, err := predicate.LabelSelectorPredicate(*adminLS)
-	if err != nil {
-		return err
-	}
-
-	userLS := metav1.SetAsLabelSelector(labels.Set{appKey: appValue, nameKey: nameValue})
-	userPred, err := predicate.LabelSelectorPredicate(*userLS)
+	ls := metav1.SetAsLabelSelector(labels.Set{appKey: appValue, nameKey: nameValue})
+	pred, err := predicate.LabelSelectorPredicate(*ls)
 	if err != nil {
 		return err
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1.ConfigMap{}, builder.WithPredicates(adminPred)).
-		Owns(&v1.Pod{}, builder.WithPredicates(userPred)).
-		Owns(&v1.Service{}, builder.WithPredicates(userPred)).
+		For(&v1.ConfigMap{}, builder.WithPredicates(pred)).
+		Owns(&v1.Pod{}, builder.WithPredicates(pred)).
+		Owns(&v1.Service{}, builder.WithPredicates(pred)).
 		Complete(r)
 }
 
@@ -130,7 +131,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 	}
 
-	desiredSvc, err := r.desiredService(ctx, cm, pod)
+	desiredSvc, result, err := r.desiredService(ctx, cm, pod)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("connecting service: %v", err)
 	}
@@ -140,7 +141,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, fmt.Errorf("reconciling service: %v", err)
 	}
 
-	return reconcile.Result{}, nil
+	return result, nil
 }
 
 func (r *Reconciler) createAnnotation(cm *v1.ConfigMap) (string, error) {
@@ -164,6 +165,24 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 	configAnnoValue, err := r.createAnnotation(cm)
 	if err != nil {
 		return nil, fmt.Errorf("serializing configmap: %v", err)
+	}
+
+	repo := cm.Data["repo"]
+	path := cm.Data["path"]
+	branch := cm.Data["branch"]
+	err = IsAllowed(r.allowlist, repo)
+	if err != nil {
+		log.Error(err, "ignoring configmap")
+
+		// TODO(nick): Find some way to propagate back to the frontend
+		// that we've gotten a permission error.
+		return nil, nil
+	}
+
+	if filepath.IsAbs(path) || strings.Contains(path, "..") {
+		log.Error(fmt.Errorf("Invalid path: %s", path), "ignoring configmap")
+
+		return nil, nil
 	}
 
 	// Credits:
@@ -236,15 +255,15 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 				Env: []v1.EnvVar{
 					{
 						Name:  "TILT_UPPER_REPO",
-						Value: cm.Data["repo"],
+						Value: repo,
 					},
 					{
 						Name:  "TILT_UPPER_PATH",
-						Value: cm.Data["path"],
+						Value: path,
 					},
 					{
 						Name:  "TILT_UPPER_BRANCH",
-						Value: cm.Data["branch"],
+						Value: branch,
 					},
 				},
 				ReadinessProbe: &v1.Probe{
@@ -328,14 +347,23 @@ func (r *Reconciler) maybeDeletePod(ctx context.Context, pod *v1.Pod, owner *v1.
 // sure the pod is getting cleaned up correctly (since it's talking directly
 // to the docker socket).
 func (r *Reconciler) deletePod(ctx context.Context, pod *v1.Pod) error {
-	return client.IgnoreNotFound(r.client().Delete(ctx, pod))
+	if pod.Status.Phase == v1.PodRunning {
+		err := r.exec(ctx, pod,
+			[]string{"ctlptl", "delete", "cluster", "kind-kind", "--ignore-not-found"},
+			ioutil.Discard, ioutil.Discard)
+		if err != nil {
+			return fmt.Errorf("deleting cluster: %v", err)
+		}
+	}
+	err := client.IgnoreNotFound(r.client().Delete(ctx, pod))
+	if err != nil {
+		return fmt.Errorf("deleting pod %s: %v", pod.Name, err)
+	}
+	return nil
 }
 
-// Once the pod is healthy, `tilt get uiresources` should give us a list of
-// endpoints that need port-forwarding.
-func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int32, error) {
-	cmd := []string{"tilt", "get", "uiresources", "-o", "json"}
-	log.FromContext(ctx).Info(fmt.Sprintf("running in pod: %s", cmd))
+func (r *Reconciler) exec(ctx context.Context, pod *v1.Pod, cmd []string, stdout, stderr io.Writer) error {
+	log.FromContext(ctx).Info(fmt.Sprintf("running in pod %s: %s", pod.Name, cmd))
 	req := r.clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Namespace(pod.Namespace).
@@ -352,17 +380,23 @@ func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int32, 
 
 	exec, err := remotecommand.NewSPDYExecutor(r.cluster.GetConfig(), "POST", req.URL())
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	stdout := bytes.NewBuffer(nil)
-	stderr := bytes.NewBuffer(nil)
-
-	err = exec.Stream(remotecommand.StreamOptions{
+	return exec.Stream(remotecommand.StreamOptions{
 		Stdin:  nil,
 		Stdout: stdout,
 		Stderr: stderr,
 	})
+}
+
+// Once the pod is healthy, `tilt get uiresources` should give us a list of
+// resources and endpoints that need port-forwarding.
+func (r *Reconciler) uiResources(ctx context.Context, pod *v1.Pod) (*v1alpha1.UIResourceList, error) {
+	cmd := []string{"tilt", "get", "uiresources", "-o", "json"}
+	stdout := bytes.NewBuffer(nil)
+	stderr := bytes.NewBuffer(nil)
+	err := r.exec(ctx, pod, cmd, stdout, stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +407,11 @@ func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int32, 
 	if err != nil {
 		return nil, err
 	}
+	return &uiResourceList, nil
+}
 
+// Determine the ports that are exposed by this tilt instance.
+func (r *Reconciler) determinePorts(uiResourceList *v1alpha1.UIResourceList) []int32 {
 	// Default tilt port.
 	ports := []int32{10350}
 	for _, uiResource := range uiResourceList.Items {
@@ -388,17 +426,34 @@ func (r *Reconciler) determinePorts(ctx context.Context, pod *v1.Pod) ([]int32, 
 	}
 
 	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
-	return ports, nil
+	return ports
 }
 
-func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *v1.Pod) (*v1.Service, error) {
-	if cm.Name == "" || pod.Name == "" || pod.Status.Phase != v1.PodRunning {
-		return nil, nil
+func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *v1.Pod) (*v1.Service, reconcile.Result, error) {
+	if cm == nil || cm.Name == "" || pod == nil || pod.Name == "" || pod.Status.Phase != v1.PodRunning {
+		return nil, reconcile.Result{}, nil
 	}
 
-	ports, err := r.determinePorts(ctx, pod)
+	for _, c := range pod.Status.ContainerStatuses {
+		if !c.Ready {
+			return nil, reconcile.Result{}, nil
+		}
+	}
+
+	uiResourceList, err := r.uiResources(ctx, pod)
 	if err != nil {
-		return nil, err
+		return nil, reconcile.Result{}, err
+	}
+
+	ports := r.determinePorts(uiResourceList)
+	result := reconcile.Result{}
+	for _, r := range uiResourceList.Items {
+		if r.Status.RuntimeStatus == "" ||
+			r.Status.RuntimeStatus == v1alpha1.RuntimeStatusPending ||
+			r.Status.RuntimeStatus == v1alpha1.RuntimeStatusUnknown {
+			// Check the ports again in 10s
+			result.RequeueAfter = 10 * time.Second
+		}
 	}
 
 	servicePorts := []v1.ServicePort{}
@@ -431,9 +486,9 @@ func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *
 
 	err = ctrl.SetControllerReference(cm, svc, r.cluster.GetScheme())
 	if err != nil {
-		return nil, err
+		return nil, reconcile.Result{}, err
 	}
-	return svc, nil
+	return svc, result, nil
 }
 
 // Reconcile the desired service spec with the current service.

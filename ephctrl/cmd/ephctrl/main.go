@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/tilt-dev/ephemerator/ephctrl/pkg/env"
+	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -45,7 +47,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	r, err := env.NewReconciler(mgr)
+	allowlist, err := readAllowlist()
+	if err != nil {
+		l.Error(err, "controller setup failed")
+		os.Exit(1)
+	}
+
+	r, err := env.NewReconciler(mgr, allowlist)
 	if err != nil {
 		l.Error(err, "controller setup failed")
 		os.Exit(1)
@@ -69,4 +77,18 @@ func main() {
 		l.Error(err, "manager start failed")
 		os.Exit(1)
 	}
+}
+
+func readAllowlist() (*env.Allowlist, error) {
+	asString := os.Getenv("ALLOWLIST")
+	if asString == "" {
+		return nil, fmt.Errorf("Missing env var ALLOWLIST")
+	}
+
+	allowlist := &env.Allowlist{}
+	err := yaml.Unmarshal([]byte(asString), allowlist)
+	if err != nil {
+		return nil, fmt.Errorf("Reading ALLOWLIST: %v", err)
+	}
+	return allowlist, nil
 }

@@ -16,12 +16,14 @@ kubectl get deployment ingress-nginx-controller -n ingress-nginx -o yaml
 docker_build(
   'ephctrl-dind',
   '.',
+  only=["./dind-entrypoint.sh"],
   dockerfile='./dind.dockerfile',
   match_in_env_vars=True)
 
 docker_build(
   'ephctrl-tilt-upper',
   '.',
+  only=["./tilt-upper-entrypoint.sh", "./tilt-healthcheck.py"],
   dockerfile='./tilt-upper.dockerfile',
   match_in_env_vars=True)
 
@@ -43,6 +45,7 @@ docker_build_with_restart(
   ]
 )
 
+k8s_yaml('allowlist.yaml')
 k8s_yaml('ephctrl.yaml')
 k8s_yaml('ingress.yaml')
 k8s_resource('ephctrl', port_forwards=['9443:9443'], resource_deps=['ephctrl-compile'])
