@@ -65,6 +65,11 @@ spec:
           value: 'ephctrl-dind'
         - name: 'TILT_UPPER_IMAGE'
           value: 'ephctrl-tilt-upper'
+        - name: 'ALLOWLIST'
+          valueFrom:
+            configMapKeyRef:
+              name: ephctrl-allowlist
+              key: allowlist
           
         securityContext:
           allowPrivilegeEscalation: false
