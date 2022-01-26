@@ -10,4 +10,4 @@ spec:
     service:
       name: ephdash
       port:
-        number: 8000
+        number: 8080
