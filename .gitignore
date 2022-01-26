@@ -16,3 +16,5 @@
 
 ephctrl/build
 ephctrl/tilt_modules
+ephdash/build
+tilt_modules

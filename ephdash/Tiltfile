@@ -1,0 +1,23 @@
+load_dynamic('../ephconfig/Tiltfile')
+load('ext://restart_process', 'docker_build_with_restart')
+
+local_resource(
+  'ephdash-compile',
+  'make build-static',
+  deps=['./cmd', './pkg'])
+
+docker_build_with_restart(
+  'ephdash',
+  '.',
+  entrypoint='/usr/local/bin/ephdash',
+  dockerfile='ephdash.dockerfile',
+  only=[
+    './build/ephdash',
+  ],
+  live_update=[
+    sync('./build/ephdash', '/usr/local/bin/ephdash'),
+  ]
+)
+
+k8s_yaml('ephdash.yaml')
+k8s_resource('ephdash', port_forwards=['8080'], resource_deps=['ephdash-compile'])

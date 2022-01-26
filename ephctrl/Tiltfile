@@ -1,3 +1,4 @@
+load_dynamic('../ephconfig/Tiltfile')
 load('ext://restart_process', 'docker_build_with_restart')
 
 ingress_yaml = 'https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml'
@@ -45,7 +46,6 @@ docker_build_with_restart(
   ]
 )
 
-k8s_yaml('allowlist.yaml')
 k8s_yaml('ephctrl.yaml')
 k8s_yaml('ingress.yaml')
 k8s_resource('ephctrl', port_forwards=['9443:9443'], resource_deps=['ephctrl-compile'])
