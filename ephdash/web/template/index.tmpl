@@ -18,5 +18,19 @@
         {{end}}
       </ul>
     </div>
+
+    <div>
+      {{if .envError}}
+      Error fetching env: {{.envError}}
+      {{else if not .env}}
+      No env yet.
+      {{else}}
+      Env:
+      <ul>
+        <li>ConfigMap: OK</li>
+        <li>Pod: {{if .env.Pod}}{{.env.Pod.Status.Phase}}{{else}}Pending{{end}}</li>
+        <li>Service: ports: {{if .env.Service}}{{printf "%+v" .env.Service.Spec.Ports}}{{else}}Pending{{end}}</li>
+      </ul>
+      {{end}}
   </body>
 </html>
