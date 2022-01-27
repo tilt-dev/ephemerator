@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tilt-dev/ephemerator/ephconfig"
 	"github.com/tilt-dev/tilt/pkg/apis/core/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -50,10 +51,10 @@ type Cluster interface {
 type Reconciler struct {
 	cluster   Cluster
 	clientset *kubernetes.Clientset
-	allowlist *Allowlist
+	allowlist *ephconfig.Allowlist
 }
 
-func NewReconciler(cluster Cluster, allowlist *Allowlist) (*Reconciler, error) {
+func NewReconciler(cluster Cluster, allowlist *ephconfig.Allowlist) (*Reconciler, error) {
 	clientset, err := kubernetes.NewForConfig(cluster.GetConfig())
 	if err != nil {
 		return nil, err
@@ -170,7 +171,7 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 	repo := cm.Data["repo"]
 	path := cm.Data["path"]
 	branch := cm.Data["branch"]
-	err = IsAllowed(r.allowlist, repo)
+	err = ephconfig.IsAllowed(r.allowlist, repo)
 	if err != nil {
 		log.Error(err, "ignoring configmap")
 
