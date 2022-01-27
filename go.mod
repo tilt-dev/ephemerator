@@ -3,6 +3,7 @@ module github.com/tilt-dev/ephemerator
 go 1.17
 
 require (
+	github.com/gorilla/mux v1.8.0
 	github.com/tilt-dev/tilt v0.23.8
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.23.2
