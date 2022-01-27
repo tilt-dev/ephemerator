@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/tilt-dev/ephemerator/ephconfig"
 	"github.com/tilt-dev/ephemerator/ephdash/web/static"
 	webtemplate "github.com/tilt-dev/ephemerator/ephdash/web/template"
 )
@@ -14,11 +15,12 @@ import (
 type Server struct {
 	*mux.Router
 
-	tmpl *template.Template
+	allowlist *ephconfig.Allowlist
+	tmpl      *template.Template
 }
 
-func NewServer() (*Server, error) {
-	s := &Server{}
+func NewServer(allowlist *ephconfig.Allowlist) (*Server, error) {
+	s := &Server{allowlist: allowlist}
 
 	r := mux.NewRouter()
 	staticContent := http.FileServer(http.FS(static.Content))
@@ -36,7 +38,9 @@ func NewServer() (*Server, error) {
 }
 
 func (s *Server) index(res http.ResponseWriter, r *http.Request) {
-	err := s.tmpl.ExecuteTemplate(res, "index.tmpl", nil)
+	err := s.tmpl.ExecuteTemplate(res, "index.tmpl", map[string]interface{}{
+		"allowlist": s.allowlist,
+	})
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Rendering HTML: %v", err), http.StatusInternalServerError)
 	}

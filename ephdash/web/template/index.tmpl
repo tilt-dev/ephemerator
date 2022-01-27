@@ -9,7 +9,14 @@
     <h2>Spin up the ephemeral environment you need.</div>
 
     <div>
-      TK Create a form
+      Allowed repos
+
+        <ul>
+        {{$repoBase := .allowlist.RepoBase}}
+        {{range .allowlist.RepoNames}}
+          <li>{{$repoBase}}/{{.}}</li>
+        {{end}}
+      </ul>
     </div>
   </body>
 </html>
