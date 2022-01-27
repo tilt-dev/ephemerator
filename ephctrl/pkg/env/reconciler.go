@@ -34,10 +34,10 @@ import (
 )
 
 var (
-	appKey          = "app.kubernetes.io/part-of"
-	appValue        = "ephemerator.tilt.dev"
-	nameKey         = "app.kubernetes.io/name"
-	nameValue       = "ephrunner"
+	appKey          = ephconfig.LabelAppKey
+	appValue        = ephconfig.LabelAppValueEphemerator
+	nameKey         = ephconfig.LabelNameKey
+	nameValue       = ephconfig.LabelNameValueEphrunner
 	ephOwnerNameKey = "ephemerator.tilt.dev/owner-name"
 	configKey       = "ephemerator.tilt.dev/configmap"
 )

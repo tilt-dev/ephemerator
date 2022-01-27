@@ -9,7 +9,7 @@ metadata:
   name: ephdash-role
 rules:
 - apiGroups: [ "" ]
-  resources: [ "pods", "pods/log" ]
+  resources: [ "pods", "pods/log", "services" ]
   verbs: ["get", "list", "watch"]
 - apiGroups: [ "" ]
   resources: [ "configmaps"]
@@ -57,6 +57,10 @@ spec:
             configMapKeyRef:
               name: ephctrl-allowlist
               key: allowlist
+        - name: 'NAMESPACE'
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
 ---
 apiVersion: v1
 kind: Service
