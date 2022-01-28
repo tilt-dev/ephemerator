@@ -33,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+const defaultExpiration = 15 * time.Minute
+
 var (
 	appKey          = ephconfig.LabelAppKey
 	appValue        = ephconfig.LabelAppValueEphemerator
@@ -119,6 +121,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, fmt.Errorf("Cannot touch conficting service")
 	}
 
+	cm, err = r.reconcileExpiration(ctx, cm)
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("Updating expiration: %v", err)
+	}
+
 	pod, err = r.maybeDeletePod(ctx, pod, cm)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("deleting pod: %v", err)
@@ -143,6 +150,48 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	return result, nil
+}
+
+// If the configmap does not have an expiration set on it,
+// set one for a default time from now.
+//
+// If the expiration has passed, delete the configmap.
+func (r *Reconciler) reconcileExpiration(ctx context.Context, cm *v1.ConfigMap) (*v1.ConfigMap, error) {
+	if cm.Name == "" {
+		return cm, nil
+	}
+
+	log := log.FromContext(ctx)
+	if cm.Data["expiration"] == "" {
+		update := cm.DeepCopy()
+		update.Data["expiration"] = time.Now().Add(defaultExpiration).Format(time.RFC3339)
+		log.Info(fmt.Sprintf("Setting expiration: %s", update.Data["expiration"]))
+
+		err := r.client().Update(ctx, update)
+		if err != nil {
+			return nil, err
+		}
+		return update, nil
+	} else {
+		expiration, err := time.Parse(time.RFC3339, cm.Data["expiration"])
+		shouldDelete := false
+		if err != nil {
+			log.Info(fmt.Sprintf("deleting configmap because the expiration is malformed: %v", err))
+			shouldDelete = true
+		} else if time.Now().After(expiration) {
+			log.Info(fmt.Sprintf("deleting configmap because the expiration is passed: %s", expiration))
+			shouldDelete = true
+		}
+
+		if shouldDelete {
+			err := client.IgnoreNotFound(r.client().Delete(ctx, cm))
+			if err != nil {
+				return nil, err
+			}
+			return &v1.ConfigMap{}, nil
+		}
+	}
+	return cm, nil
 }
 
 func (r *Reconciler) createAnnotation(cm *v1.ConfigMap) (string, error) {
@@ -344,11 +393,24 @@ func (r *Reconciler) maybeDeletePod(ctx context.Context, pod *v1.Pod, owner *v1.
 	return pod, nil
 }
 
-// TODO(nick): This isn't quite right. We probably need to do bookkeeping to make
-// sure the pod is getting cleaned up correctly (since it's talking directly
-// to the docker socket).
+// Tear down the dind cluster (DIND is not create at shutting down cleanly on its own).
 func (r *Reconciler) deletePod(ctx context.Context, pod *v1.Pod) error {
-	if pod.Status.Phase == v1.PodRunning {
+	if pod.DeletionTimestamp != nil {
+		log.FromContext(ctx).Info("pod deletion already in progress")
+		return nil
+	}
+
+	needsClusterTeardown := true
+	if pod.Status.Phase != v1.PodRunning {
+		needsClusterTeardown = false
+	}
+	for _, c := range pod.Status.ContainerStatuses {
+		if c.State.Running == nil {
+			needsClusterTeardown = false
+		}
+	}
+
+	if needsClusterTeardown {
 		err := client.IgnoreNotFound(
 			r.exec(ctx, pod,
 				[]string{"ctlptl", "delete", "cluster", "kind-kind", "--ignore-not-found"},
