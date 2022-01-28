@@ -16,13 +16,14 @@ import (
 type Server struct {
 	*mux.Router
 
-	envClient *env.Client
-	allowlist *ephconfig.Allowlist
-	tmpl      *template.Template
+	envClient   *env.Client
+	allowlist   *ephconfig.Allowlist
+	gatewayHost string
+	tmpl        *template.Template
 }
 
-func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist) (*Server, error) {
-	s := &Server{envClient: envClient, allowlist: allowlist}
+func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist, gatewayHost string) (*Server, error) {
+	s := &Server{envClient: envClient, allowlist: allowlist, gatewayHost: gatewayHost}
 
 	r := mux.NewRouter()
 	staticContent := http.FileServer(http.FS(static.Content))
@@ -47,9 +48,10 @@ func (s *Server) index(res http.ResponseWriter, r *http.Request) {
 	user := "nicks" // TODO(nick): Get an actual authenticated user.
 	env, envError := s.envClient.GetEnv(r.Context(), user)
 	err := s.tmpl.ExecuteTemplate(res, "index.tmpl", map[string]interface{}{
-		"allowlist": s.allowlist,
-		"env":       env,
-		"envError":  envError,
+		"allowlist":   s.allowlist,
+		"env":         env,
+		"envError":    envError,
+		"gatewayHost": s.gatewayHost,
 	})
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Rendering HTML: %v", err), http.StatusInternalServerError)
@@ -91,7 +93,7 @@ func (s *Server) create(res http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(res, r, "/", http.StatusTemporaryRedirect)
+	http.Redirect(res, r, "/", http.StatusSeeOther)
 }
 
 // Deletes an environment. One environment per user.
@@ -103,5 +105,5 @@ func (s *Server) deleteEnv(res http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(res, r, "/", http.StatusTemporaryRedirect)
+	http.Redirect(res, r, "/", http.StatusSeeOther)
 }

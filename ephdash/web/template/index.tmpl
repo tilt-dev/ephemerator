@@ -31,15 +31,15 @@
         <form method="POST" action="/create">
         <div>
           <label for="repo">Repo:</label>
-          <input type="text" id="repo" name="repo" value="https://github.com/tilt-dev/tilt-example-html">
+          <input type="text" id="repo" name="repo" size="40" value="https://github.com/tilt-dev/tilt-example-html">
         </div>
         <div>
           <label for="path">Path:</label>
-          <input type="text" id="path" name="path" value=".">
+          <input type="text" id="path" name="path" size="40" value="0-base">
         </div>
         <div>
           <label for="branch">Branch:</label>
-          <input type="text" id="branch" name="branch" value="master">
+          <input type="text" id="branch" name="branch" size="40" value="master">
         </div>
         <div>
           <input type="submit" value="Create env"/>
@@ -54,11 +54,12 @@
 
         <ul>
           
+        {{$gatewayHost := .gatewayHost}}
         {{if .env.Service}}
           {{if len .env.Service.Spec.Ports}}
             {{$name := .env.Service.ObjectMeta.Name}}
             {{range .env.Service.Spec.Ports}}
-              <li><a href='{{printf "http://%d.%s.localhost/" .Port $name}}'>{{.Name}}</a></li>
+              <li><a href='{{printf "http://%d.%s.%s/" .Port $name $gatewayHost}}'>{{.Name}}</a></li>
             {{end}}  
           {{else}}
             <li>None</li>

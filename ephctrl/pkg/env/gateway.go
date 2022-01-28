@@ -25,16 +25,18 @@ import (
 
 // Makes sure that the gateway has host mappings for every environment.
 type GatewayReconciler struct {
-	cluster Cluster
+	cluster     Cluster
+	gatewayHost string
 
 	mu       sync.Mutex
 	gateways map[types.NamespacedName]bool
 }
 
-func NewGatewayReconciler(cluster Cluster) *GatewayReconciler {
+func NewGatewayReconciler(cluster Cluster, gatewayHost string) *GatewayReconciler {
 	return &GatewayReconciler{
-		cluster:  cluster,
-		gateways: make(map[types.NamespacedName]bool),
+		cluster:     cluster,
+		gatewayHost: gatewayHost,
+		gateways:    make(map[types.NamespacedName]bool),
 	}
 }
 
@@ -122,7 +124,7 @@ func (r *GatewayReconciler) desiredRules(svcs []v1.Service) []networkingv1.Ingre
 		for _, port := range svc.Spec.Ports {
 			subdomain := fmt.Sprintf("%d", port.Port)
 			rules = append(rules, networkingv1.IngressRule{
-				Host: fmt.Sprintf("%s.%s.localhost", subdomain, svc.Name),
+				Host: fmt.Sprintf("%s.%s.%s", subdomain, svc.Name, r.gatewayHost),
 				IngressRuleValue: networkingv1.IngressRuleValue{
 					HTTP: &networkingv1.HTTPIngressRuleValue{
 						Paths: []networkingv1.HTTPIngressPath{

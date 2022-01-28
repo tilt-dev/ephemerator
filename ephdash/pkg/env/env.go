@@ -76,14 +76,14 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 		req := c.clientset.CoreV1().Pods(c.namespace).GetLogs(name, &v1.PodLogOptions{Container: "tilt-upper"})
 		podLogs, err := req.Stream(ctx)
 		if err != nil {
-			return nil
+			return nil // Always return nil
 		}
 		defer podLogs.Close()
 
 		buf := new(bytes.Buffer)
 		_, err = io.Copy(buf, podLogs)
 		if err != nil {
-			return nil
+			return nil // Always return nil
 		}
 
 		if buf.Len() != 0 {

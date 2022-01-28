@@ -52,11 +52,16 @@ spec:
       - image: ephdash
         name: ephdash
         env:
-        - name: 'ALLOWLIST'
+        - name: 'EPH_ALLOWLIST'
           valueFrom:
             configMapKeyRef:
-              name: ephctrl-allowlist
+              name: ephconfig
               key: allowlist
+        - name: 'EPH_GATEWAY_HOST'
+          valueFrom:
+            configMapKeyRef:
+              name: ephconfig
+              key: gatewayHost
         - name: 'NAMESPACE'
           valueFrom:
             fieldRef:

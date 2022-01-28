@@ -34,7 +34,12 @@ func main() {
 		log.Fatal("server setup failed")
 	}
 
-	handler, err := server.NewServer(envClient, allowlist)
+	gatewayHost, err := ephconfig.ReadGatewayHost()
+	if err != nil {
+		log.Fatal("server setup failed")
+	}
+
+	handler, err := server.NewServer(envClient, allowlist, gatewayHost)
 	if err != nil {
 		log.Fatal(err)
 	}
