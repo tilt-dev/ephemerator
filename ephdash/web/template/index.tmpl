@@ -4,6 +4,7 @@
     <title>Ephemerate Your Life | Tilt Ephemerator</title>
     <link rel="stylesheet" href="https://use.typekit.net/yii5fqs.css">
     <link rel="stylesheet" href="/static/ephemerator.css">
+    <script src="/static/load.js"></script>
   </head>
   <body>
     <h1>Ephemerate Your Life</h1>
@@ -30,15 +31,15 @@
         <form method="POST" action="/create">
         <div>
           <label for="repo">Repo:</label>
-          <input type="text" id="repo" name="repo">
+          <input type="text" id="repo" name="repo" value="https://github.com/tilt-dev/tilt-example-html">
         </div>
         <div>
           <label for="path">Path:</label>
-          <input type="text" id="path" name="path">
+          <input type="text" id="path" name="path" value=".">
         </div>
         <div>
           <label for="branch">Branch:</label>
-          <input type="text" id="branch" name="branch">
+          <input type="text" id="branch" name="branch" value="master">
         </div>
         <div>
           <input type="submit" value="Create env"/>
@@ -75,7 +76,13 @@
           <li>Cluster: <b>{{if and .env.Pod .env.Pod.Status.Phase}}{{.env.Pod.Status.Phase}}{{else}}Pending{{end}}</b></li>
           <li>Networking: <b>{{if .env.Service}}OK{{else}}Pending{{end}}</b></li>
         </ul>
-        
+
+        <div>Cluster Setup Logs:</div>
+
+        {{if .env.PodLogs}}
+        <code class="logpane"><pre>{{.env.PodLogs.String}}</pre></code>
+        {{end}}
+          
         <form method="POST" action="/delete">
           <div>
             <input type="submit" value="Delete env"/>

@@ -1,8 +1,10 @@
 package env
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/tilt-dev/ephemerator/ephconfig"
 	"golang.org/x/sync/errgroup"
@@ -17,6 +19,7 @@ type Env struct {
 	ConfigMap *v1.ConfigMap
 	Pod       *v1.Pod
 	Service   *v1.Service
+	PodLogs   *bytes.Buffer
 }
 
 type EnvSpec struct {
@@ -66,6 +69,26 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 			return err
 		}
 		env.Pod = obj
+		return nil
+	})
+
+	g.Go(func() error {
+		req := c.clientset.CoreV1().Pods(c.namespace).GetLogs(name, &v1.PodLogOptions{Container: "tilt-upper"})
+		podLogs, err := req.Stream(ctx)
+		if err != nil {
+			return nil
+		}
+		defer podLogs.Close()
+
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, podLogs)
+		if err != nil {
+			return nil
+		}
+
+		if buf.Len() != 0 {
+			env.PodLogs = buf
+		}
 		return nil
 	})
 
