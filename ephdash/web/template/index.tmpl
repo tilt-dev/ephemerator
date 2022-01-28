@@ -59,7 +59,7 @@
           {{if len .env.Service.Spec.Ports}}
             {{$name := .env.Service.ObjectMeta.Name}}
             {{range .env.Service.Spec.Ports}}
-              <li><a href='{{printf "http://%d.%s.%s/" .Port $name $gatewayHost}}'>{{.Name}}</a></li>
+              <li><a href='{{printf "http://%d---%s.%s/" .Port $name $gatewayHost}}'>{{.Name}}</a></li>
             {{end}}  
           {{else}}
             <li>None</li>

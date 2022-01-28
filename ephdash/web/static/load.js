@@ -2,8 +2,12 @@
 // Add some light interactivity.
 window.addEventListener('load', () => {
   let logpane = document.querySelector('.logpane')
-  logpane.scrollTop = logpane.scrollHeight
+  if (logpane) {
+    // Scroll to bottom.
+    logpane.scrollTop = logpane.scrollHeight
+  }
 
+  // Count down when the env will expire.
   let expirationEl = document.querySelector('.expiration')
   let countdownEl = document.querySelector('.expirationCountdown')
   let expiration = expirationEl && new Date(expirationEl.innerText)

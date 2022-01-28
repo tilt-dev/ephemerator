@@ -29,6 +29,11 @@ There are many features that go into a "gold standard" env operator:
   
 The ephemerator operator isn't trying to solve these problems right now.
 
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING) for details on how to run
+this locally or in your own cluster.
+
 ## Architecture
 
 The desired state of ephemeral environments in the cluster are stored in ConfigMaps

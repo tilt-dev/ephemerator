@@ -1,4 +1,4 @@
-load_dynamic('../ephconfig/Tiltfile')
+load('../ephconfig/Tiltfile', 'USE_OAUTH2')
 load('ext://restart_process', 'docker_build_with_restart')
 
 ingress_yaml = 'https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml'
@@ -11,7 +11,7 @@ set -ex
 kubectl apply -f %s 1>&2
 kubectl get deployment ingress-nginx-controller -n ingress-nginx -o yaml
 """ % ingress_yaml,
-  delete_cmd='kubectl delete -f %s -o yaml' % ingress_yaml,
+  delete_cmd='kubectl delete -f %s' % ingress_yaml,
   deps=[])
 
 docker_build(
@@ -47,7 +47,13 @@ docker_build_with_restart(
 )
 
 k8s_yaml('ephctrl.yaml')
-k8s_yaml('ingress.yaml')
+
+if USE_OAUTH2:
+  k8s_yaml('ingress-oauth2.yaml')
+  k8s_yaml('oauth2-proxy.yaml')
+else:
+  k8s_yaml('ingress-no-auth.yaml')
+
 k8s_resource('ephctrl', port_forwards=['9443:9443'], resource_deps=['ephctrl-compile'])
 
 k8s_custom_deploy(

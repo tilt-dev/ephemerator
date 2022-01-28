@@ -36,12 +36,13 @@ import (
 const defaultExpiration = 15 * time.Minute
 
 var (
-	appKey          = ephconfig.LabelAppKey
-	appValue        = ephconfig.LabelAppValueEphemerator
-	nameKey         = ephconfig.LabelNameKey
-	nameValue       = ephconfig.LabelNameValueEphrunner
-	ephOwnerNameKey = "ephemerator.tilt.dev/owner-name"
-	configKey       = "ephemerator.tilt.dev/configmap"
+	appKey           = ephconfig.LabelAppKey
+	appValue         = ephconfig.LabelAppValueEphemerator
+	nameKey          = ephconfig.LabelNameKey
+	nameValue        = ephconfig.LabelNameValueEphrunner
+	nameGatewayValue = "ephgateway"
+	ephOwnerNameKey  = "ephemerator.tilt.dev/owner-name"
+	configKey        = "ephemerator.tilt.dev/configmap"
 )
 
 type Cluster interface {

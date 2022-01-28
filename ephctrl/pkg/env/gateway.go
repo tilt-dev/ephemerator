@@ -41,14 +41,14 @@ func NewGatewayReconciler(cluster Cluster, gatewayHost string) *GatewayReconcile
 }
 
 func (r *GatewayReconciler) AddToManager(mgr ctrl.Manager) error {
-	adminLS := metav1.SetAsLabelSelector(labels.Set{appKey: appValue})
-	adminPred, err := predicate.LabelSelectorPredicate(*adminLS)
+	ingressLS := metav1.SetAsLabelSelector(labels.Set{appKey: appValue, nameKey: nameGatewayValue})
+	ingressPred, err := predicate.LabelSelectorPredicate(*ingressLS)
 	if err != nil {
 		return err
 	}
 
-	userLS := metav1.SetAsLabelSelector(labels.Set{appKey: appValue, nameKey: nameValue})
-	userPred, err := predicate.LabelSelectorPredicate(*userLS)
+	svcLS := metav1.SetAsLabelSelector(labels.Set{appKey: appValue, nameKey: nameValue})
+	svcPred, err := predicate.LabelSelectorPredicate(*svcLS)
 	if err != nil {
 		return err
 	}
@@ -65,8 +65,8 @@ func (r *GatewayReconciler) AddToManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&networkingv1.Ingress{}, builder.WithPredicates(adminPred)).
-		Watches(&source.Kind{Type: &v1.Service{}}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(userPred)).
+		For(&networkingv1.Ingress{}, builder.WithPredicates(ingressPred)).
+		Watches(&source.Kind{Type: &v1.Service{}}, handler.EnqueueRequestsFromMapFunc(mapFunc), builder.WithPredicates(svcPred)).
 		Complete(r)
 }
 
@@ -94,6 +94,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		delete(r.gateways, nn)
 		return reconcile.Result{}, nil
 	}
+
+	if ing.Name != "" && (ing.Labels[appKey] != appValue || ing.Labels[nameKey] != nameGatewayValue) {
+		// If the labels don't match, bail out.
+		return reconcile.Result{}, fmt.Errorf("Cannot touch conficting pod")
+	}
+
 	r.gateways[nn] = true
 
 	svcs, err := r.services(ctx)
@@ -101,7 +107,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	rules := r.desiredRules(svcs)
+	rules := r.desiredRules(ing, svcs)
 
 	if !equality.Semantic.DeepEqual(ing.Spec.Rules, rules) {
 		update := ing.DeepCopy()
@@ -117,14 +123,17 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 }
 
 // Convert the services into a set of ingress rules.
-func (r *GatewayReconciler) desiredRules(svcs []v1.Service) []networkingv1.IngressRule {
-	rules := []networkingv1.IngressRule{}
+func (r *GatewayReconciler) desiredRules(ingress *networkingv1.Ingress, svcs []v1.Service) []networkingv1.IngressRule {
+	rules := []networkingv1.IngressRule{
+		// Always preserve the first rule. That's the one that goes to ephdash.
+		ingress.Spec.Rules[0],
+	}
 	prefix := networkingv1.PathTypePrefix
 	for _, svc := range svcs {
 		for _, port := range svc.Spec.Ports {
 			subdomain := fmt.Sprintf("%d", port.Port)
 			rules = append(rules, networkingv1.IngressRule{
-				Host: fmt.Sprintf("%s.%s.%s", subdomain, svc.Name, r.gatewayHost),
+				Host: fmt.Sprintf("%s---%s.%s", subdomain, svc.Name, r.gatewayHost),
 				IngressRuleValue: networkingv1.IngressRuleValue{
 					HTTP: &networkingv1.HTTPIngressRuleValue{
 						Paths: []networkingv1.HTTPIngressPath{
