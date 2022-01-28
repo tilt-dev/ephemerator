@@ -121,10 +121,6 @@ func (r *GatewayReconciler) desiredRules(svcs []v1.Service) []networkingv1.Ingre
 	for _, svc := range svcs {
 		for _, port := range svc.Spec.Ports {
 			subdomain := fmt.Sprintf("%d", port.Port)
-			if port.Port == 10350 {
-				subdomain = "tilt"
-			}
-
 			rules = append(rules, networkingv1.IngressRule{
 				Host: fmt.Sprintf("%s.%s.localhost", subdomain, svc.Name),
 				IngressRuleValue: networkingv1.IngressRuleValue{

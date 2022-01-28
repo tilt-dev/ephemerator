@@ -92,6 +92,26 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 	return env, nil
 }
 
+// Delete the configuration for the env.
+func (c *Client) DeleteEnv(ctx context.Context, name string) error {
+	// Make sure we're not deleting a configmap for a non-runner.
+	current, err := c.clientset.CoreV1().ConfigMaps(c.namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	if current.Labels[ephconfig.LabelAppKey] != ephconfig.LabelAppValueEphemerator ||
+		current.Labels[ephconfig.LabelNameKey] != ephconfig.LabelNameValueEphrunner {
+		// Make sure we don't overwrite a configmap for non-runners.
+		return fmt.Errorf("conflict with existing env: %s", name)
+	}
+
+	return c.clientset.CoreV1().ConfigMaps(c.namespace).Delete(ctx, name, metav1.DeleteOptions{})
+}
+
 // Set the configuration for the env.
 func (c *Client) SetEnvSpec(ctx context.Context, name string, spec EnvSpec) error {
 	desired := &v1.ConfigMap{

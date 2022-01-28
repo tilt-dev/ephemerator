@@ -1,0 +1,60 @@
+body {
+  margin: 32px;
+  font-family: nono-sans, sans-serif;
+  color: #073642;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+h1 {
+  font-weight: 900;
+  color: #F6685C;
+  font-size: 38px;
+  line-height: 1.4;
+  margin-top: 64px;
+}
+
+h2 {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin-top: 48px;
+}
+
+h3 {
+  font-size: 1.25em;
+  font-weight: 700;
+  color: #606060;
+  margin-top: 48px;
+}
+
+aside {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: 1px solid #606060;
+  font-size: 16px;
+  padding: 32px;
+}
+
+input[type="submit"] {
+  border: 2px outset #606060;
+  border-radius: 5px;
+  padding: 16px;
+  background-color: white;
+  font-size: 18px;
+  font-family: nono-sans, sans-serif;
+  color: #073642;
+  transition: color 300ms ease, border-color 300ms ease;
+  cursor: pointer;
+  margin-top: 48px;
+}
+
+input[type="submit"]:hover {
+  color: #F6685C;
+  border-color: #F6685C;
+}
+
+input[type="submit"].danger:hover {
+  color: #03C7D3;
+  border-color: #03C7D3;
+}

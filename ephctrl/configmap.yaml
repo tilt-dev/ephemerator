@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nicks-env
+  name: nicks
   labels:
     app.kubernetes.io/part-of: ephemerator.tilt.dev
     app.kubernetes.io/name: ephrunner
