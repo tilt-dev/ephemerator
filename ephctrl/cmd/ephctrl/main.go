@@ -52,6 +52,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	gatewayHost, err := ephconfig.ReadGatewayHost()
+	if err != nil {
+		l.Error(err, "controller setup failed")
+		os.Exit(1)
+	}
+
 	r, err := env.NewReconciler(mgr, allowlist)
 	if err != nil {
 		l.Error(err, "controller setup failed")
@@ -64,7 +70,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	gr := env.NewGatewayReconciler(mgr)
+	gr := env.NewGatewayReconciler(mgr, gatewayHost)
 	err = gr.AddToManager(mgr)
 	if err != nil {
 		l.Error(err, "controller setup failed")

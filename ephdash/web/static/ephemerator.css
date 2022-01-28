@@ -36,6 +36,20 @@ aside {
   padding: 32px;
 }
 
+label {
+  display: inline-block;
+  min-width: 64px;
+}
+
+input[type="text"] {
+  border: 2px outset #606060;
+  border-radius: 5px;
+  font-size: 18px;
+  font-family: nono-sans, sans-serif;
+  margin-top: 8px;
+  display: inline-block;
+}
+
 input[type="submit"] {
   border: 2px outset #606060;
   border-radius: 5px;

@@ -65,11 +65,16 @@ spec:
           value: 'ephctrl-dind'
         - name: 'TILT_UPPER_IMAGE'
           value: 'ephctrl-tilt-upper'
-        - name: 'ALLOWLIST'
+        - name: 'EPH_ALLOWLIST'
           valueFrom:
             configMapKeyRef:
-              name: ephctrl-allowlist
+              name: ephconfig
               key: allowlist
+        - name: 'EPH_GATEWAY_HOST'
+          valueFrom:
+            configMapKeyRef:
+              name: ephconfig
+              key: gatewayHost
           
         securityContext:
           allowPrivilegeEscalation: false
