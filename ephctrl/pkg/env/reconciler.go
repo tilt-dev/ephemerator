@@ -349,9 +349,10 @@ func (r *Reconciler) maybeDeletePod(ctx context.Context, pod *v1.Pod, owner *v1.
 // to the docker socket).
 func (r *Reconciler) deletePod(ctx context.Context, pod *v1.Pod) error {
 	if pod.Status.Phase == v1.PodRunning {
-		err := r.exec(ctx, pod,
-			[]string{"ctlptl", "delete", "cluster", "kind-kind", "--ignore-not-found"},
-			ioutil.Discard, ioutil.Discard)
+		err := client.IgnoreNotFound(
+			r.exec(ctx, pod,
+				[]string{"ctlptl", "delete", "cluster", "kind-kind", "--ignore-not-found"},
+				ioutil.Discard, ioutil.Discard))
 		if err != nil {
 			return fmt.Errorf("deleting cluster: %v", err)
 		}
@@ -412,9 +413,40 @@ func (r *Reconciler) uiResources(ctx context.Context, pod *v1.Pod) (*v1alpha1.UI
 }
 
 // Determine the ports that are exposed by this tilt instance.
-func (r *Reconciler) determinePorts(uiResourceList *v1alpha1.UIResourceList) []int32 {
-	// Default tilt port.
-	ports := []int32{10350}
+func (r *Reconciler) determinePorts(uiResourceList *v1alpha1.UIResourceList) []v1.ServicePort {
+	svcPorts := []v1.ServicePort{}
+	names := make(map[string]bool)
+	ports := make(map[int32]bool)
+
+	// Add service ports, ensuring unique names and ports.
+	safeAdd := func(name string, port int32) {
+		_, taken := ports[port]
+		if taken {
+			return
+		}
+
+		candidate := name
+		i := 1
+		for {
+			_, taken := names[candidate]
+			if !taken {
+				break
+			}
+			i++
+			candidate = fmt.Sprintf("%s-%d", name, i)
+		}
+
+		svcPorts = append(svcPorts, v1.ServicePort{
+			Name:     candidate,
+			Protocol: "TCP",
+			Port:     port,
+		})
+		names[candidate] = true
+		ports[port] = true
+	}
+
+	safeAdd("tilt", 10350)
+
 	for _, uiResource := range uiResourceList.Items {
 		for _, link := range uiResource.Status.EndpointLinks {
 			var port int32
@@ -422,12 +454,12 @@ func (r *Reconciler) determinePorts(uiResourceList *v1alpha1.UIResourceList) []i
 			if err != nil || port == 0 {
 				continue
 			}
-			ports = append(ports, port)
+			safeAdd(uiResource.Name, port)
 		}
 	}
 
-	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
-	return ports
+	sort.Slice(svcPorts, func(i, j int) bool { return svcPorts[i].Port < svcPorts[j].Port })
+	return svcPorts
 }
 
 func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *v1.Pod) (*v1.Service, reconcile.Result, error) {
@@ -446,7 +478,6 @@ func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *
 		return nil, reconcile.Result{}, err
 	}
 
-	ports := r.determinePorts(uiResourceList)
 	result := reconcile.Result{}
 	for _, r := range uiResourceList.Items {
 		if r.Status.RuntimeStatus == "" ||
@@ -457,14 +488,7 @@ func (r *Reconciler) desiredService(ctx context.Context, cm *v1.ConfigMap, pod *
 		}
 	}
 
-	servicePorts := []v1.ServicePort{}
-	for _, p := range ports {
-		servicePorts = append(servicePorts, v1.ServicePort{
-			Name:     fmt.Sprintf("tcp-%d", p),
-			Protocol: "TCP",
-			Port:     p,
-		})
-	}
+	servicePorts := r.determinePorts(uiResourceList)
 
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{

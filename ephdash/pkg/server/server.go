@@ -31,9 +31,12 @@ func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist) (*Server, 
 		return nil, err
 	}
 
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticContent))
 	r.Handle("/favicon.ico", staticContent).Methods("GET")
 	r.HandleFunc("/index.html", s.index).Methods("GET")
-	r.HandleFunc("/", s.index).Methods("GET")
+	r.HandleFunc("/create", s.create).Methods("POST")
+	r.HandleFunc("/delete", s.deleteEnv).Methods("POST")
+	r.HandleFunc("/", s.index).Methods("GET", "POST")
 
 	s.Router = r
 	s.tmpl = tmpl
@@ -51,4 +54,54 @@ func (s *Server) index(res http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Rendering HTML: %v", err), http.StatusInternalServerError)
 	}
+}
+
+// Creates an environment.
+//
+// If there are fields missing, regenerates the creation
+// form with options for the missing fields.
+func (s *Server) create(res http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Parsing form data: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	user := "nicks" // TODO(nick): Get an actual authenticated user.
+	spec := env.EnvSpec{
+		Repo:   r.FormValue("repo"),
+		Branch: r.FormValue("branch"),
+		Path:   r.FormValue("path"),
+	}
+
+	if spec.Repo == "" || spec.Branch == "" || spec.Path == "" {
+		http.Error(res, fmt.Sprintf("Missing form data: %v", spec), http.StatusBadRequest)
+		return
+	}
+
+	err = ephconfig.IsAllowed(s.allowlist, spec.Repo)
+	if err != nil {
+		http.Error(res, fmt.Sprintf("May not create env for repo %q: %v", spec.Repo, err), http.StatusForbidden)
+		return
+	}
+
+	err = s.envClient.SetEnvSpec(r.Context(), user, spec)
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Creating env: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(res, r, "/", http.StatusTemporaryRedirect)
+}
+
+// Deletes an environment. One environment per user.
+func (s *Server) deleteEnv(res http.ResponseWriter, r *http.Request) {
+	user := "nicks" // TODO(nick): Get an actual authenticated user.
+	err := s.envClient.DeleteEnv(r.Context(), user)
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Deleting env: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(res, r, "/", http.StatusTemporaryRedirect)
 }

@@ -1,8 +1,10 @@
 package env
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/tilt-dev/ephemerator/ephconfig"
 	"golang.org/x/sync/errgroup"
@@ -17,6 +19,7 @@ type Env struct {
 	ConfigMap *v1.ConfigMap
 	Pod       *v1.Pod
 	Service   *v1.Service
+	PodLogs   *bytes.Buffer
 }
 
 type EnvSpec struct {
@@ -70,6 +73,26 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 	})
 
 	g.Go(func() error {
+		req := c.clientset.CoreV1().Pods(c.namespace).GetLogs(name, &v1.PodLogOptions{Container: "tilt-upper"})
+		podLogs, err := req.Stream(ctx)
+		if err != nil {
+			return nil
+		}
+		defer podLogs.Close()
+
+		buf := new(bytes.Buffer)
+		_, err = io.Copy(buf, podLogs)
+		if err != nil {
+			return nil
+		}
+
+		if buf.Len() != 0 {
+			env.PodLogs = buf
+		}
+		return nil
+	})
+
+	g.Go(func() error {
 		obj, err := c.clientset.CoreV1().Services(c.namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -90,6 +113,26 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 		return nil, nil
 	}
 	return env, nil
+}
+
+// Delete the configuration for the env.
+func (c *Client) DeleteEnv(ctx context.Context, name string) error {
+	// Make sure we're not deleting a configmap for a non-runner.
+	current, err := c.clientset.CoreV1().ConfigMaps(c.namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	if current.Labels[ephconfig.LabelAppKey] != ephconfig.LabelAppValueEphemerator ||
+		current.Labels[ephconfig.LabelNameKey] != ephconfig.LabelNameValueEphrunner {
+		// Make sure we don't overwrite a configmap for non-runners.
+		return fmt.Errorf("conflict with existing env: %s", name)
+	}
+
+	return c.clientset.CoreV1().ConfigMaps(c.namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
 // Set the configuration for the env.
