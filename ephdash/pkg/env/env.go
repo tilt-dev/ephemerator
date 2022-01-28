@@ -150,6 +150,7 @@ func (c *Client) SetEnvSpec(ctx context.Context, name string, spec EnvSpec) erro
 			"repo":   spec.Repo,
 			"path":   spec.Path,
 			"branch": spec.Branch,
+			// For now, let the controller handle expiration.
 		},
 	}
 

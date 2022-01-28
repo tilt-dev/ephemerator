@@ -69,15 +69,16 @@
           
         </ul>
 
-        <div>Cluster Status:</div>
+        <div>Status:</div>
         
         <ul>
           <li>Spec: <b>{{if .env.ConfigMap}}OK{{else}}Missing{{end}}</b></li>
           <li>Cluster: <b>{{if and .env.Pod .env.Pod.Status.Phase}}{{.env.Pod.Status.Phase}}{{else}}Pending{{end}}</b></li>
           <li>Networking: <b>{{if .env.Service}}OK{{else}}Pending{{end}}</b></li>
+          <li>Expiration: <b class="expiration">{{if and .env.ConfigMap .env.ConfigMap.Data.expiration}}{{.env.ConfigMap.Data.expiration}}{{else}}Pending{{end}}</b> <b class="expirationCountdown"></b></li>
         </ul>
 
-        <div>Cluster Setup Logs:</div>
+        <div>Setup Logs:</div>
 
         {{if .env.PodLogs}}
         <code class="logpane"><pre>{{.env.PodLogs.String}}</pre></code>
