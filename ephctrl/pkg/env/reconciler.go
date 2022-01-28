@@ -121,7 +121,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, fmt.Errorf("Cannot touch conficting service")
 	}
 
-	cm, err = r.reconcileExpiration(ctx, cm)
+	cm, cmResult, err := r.reconcileExpiration(ctx, cm)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("Updating expiration: %v", err)
 	}
@@ -139,7 +139,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 	}
 
-	desiredSvc, result, err := r.desiredService(ctx, cm, pod)
+	desiredSvc, svcResult, err := r.desiredService(ctx, cm, pod)
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("connecting service: %v", err)
 	}
@@ -149,6 +149,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, fmt.Errorf("reconciling service: %v", err)
 	}
 
+	result := cmResult
+	if svcResult.RequeueAfter < result.RequeueAfter {
+		result.RequeueAfter = svcResult.RequeueAfter
+	}
+
 	return result, nil
 }
 
@@ -156,9 +161,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 // set one for a default time from now.
 //
 // If the expiration has passed, delete the configmap.
-func (r *Reconciler) reconcileExpiration(ctx context.Context, cm *v1.ConfigMap) (*v1.ConfigMap, error) {
+func (r *Reconciler) reconcileExpiration(ctx context.Context, cm *v1.ConfigMap) (*v1.ConfigMap, reconcile.Result, error) {
 	if cm.Name == "" {
-		return cm, nil
+		return cm, reconcile.Result{}, nil
 	}
 
 	log := log.FromContext(ctx)
@@ -169,29 +174,31 @@ func (r *Reconciler) reconcileExpiration(ctx context.Context, cm *v1.ConfigMap) 
 
 		err := r.client().Update(ctx, update)
 		if err != nil {
-			return nil, err
+			return nil, reconcile.Result{}, err
 		}
-		return update, nil
-	} else {
-		expiration, err := time.Parse(time.RFC3339, cm.Data["expiration"])
-		shouldDelete := false
-		if err != nil {
-			log.Info(fmt.Sprintf("deleting configmap because the expiration is malformed: %v", err))
-			shouldDelete = true
-		} else if time.Now().After(expiration) {
-			log.Info(fmt.Sprintf("deleting configmap because the expiration is passed: %s", expiration))
-			shouldDelete = true
-		}
-
-		if shouldDelete {
-			err := client.IgnoreNotFound(r.client().Delete(ctx, cm))
-			if err != nil {
-				return nil, err
-			}
-			return &v1.ConfigMap{}, nil
-		}
+		return update, reconcile.Result{RequeueAfter: defaultExpiration}, nil
 	}
-	return cm, nil
+
+	now := time.Now()
+
+	expiration, err := time.Parse(time.RFC3339, cm.Data["expiration"])
+	shouldDelete := false
+	if err != nil {
+		log.Info(fmt.Sprintf("deleting configmap because the expiration is malformed: %v", err))
+		shouldDelete = true
+	} else if now.After(expiration) || now.Equal(expiration) {
+		log.Info(fmt.Sprintf("deleting configmap because the expiration is passed: %s", expiration))
+		shouldDelete = true
+	}
+
+	if shouldDelete {
+		err := client.IgnoreNotFound(r.client().Delete(ctx, cm))
+		if err != nil {
+			return nil, reconcile.Result{}, err
+		}
+		return &v1.ConfigMap{}, reconcile.Result{}, nil
+	}
+	return cm, reconcile.Result{RequeueAfter: expiration.Sub(now)}, nil
 }
 
 func (r *Reconciler) createAnnotation(cm *v1.ConfigMap) (string, error) {
