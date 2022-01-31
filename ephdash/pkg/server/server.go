@@ -1,9 +1,11 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 	"github.com/tilt-dev/ephemerator/ephconfig"
@@ -16,14 +18,15 @@ import (
 type Server struct {
 	*mux.Router
 
-	envClient   *env.Client
-	allowlist   *ephconfig.Allowlist
-	gatewayHost string
-	tmpl        *template.Template
+	envClient    *env.Client
+	allowlist    *ephconfig.Allowlist
+	gatewayHost  string
+	tmpl         *template.Template
+	authSettings AuthSettings
 }
 
-func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist, gatewayHost string) (*Server, error) {
-	s := &Server{envClient: envClient, allowlist: allowlist, gatewayHost: gatewayHost}
+func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist, gatewayHost string, authSettings AuthSettings) (*Server, error) {
+	s := &Server{envClient: envClient, allowlist: allowlist, gatewayHost: gatewayHost, authSettings: authSettings}
 
 	r := mux.NewRouter()
 	staticContent := http.FileServer(http.FS(static.Content))
@@ -45,17 +48,67 @@ func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist, gatewayHos
 }
 
 func (s *Server) index(res http.ResponseWriter, r *http.Request) {
-	user := "nicks" // TODO(nick): Get an actual authenticated user.
+	user, err := s.username(r)
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Reading username: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	env, envError := s.envClient.GetEnv(r.Context(), user)
-	err := s.tmpl.ExecuteTemplate(res, "index.tmpl", map[string]interface{}{
+	err = s.tmpl.ExecuteTemplate(res, "index.tmpl", map[string]interface{}{
 		"allowlist":   s.allowlist,
 		"env":         env,
 		"envError":    envError,
 		"gatewayHost": s.gatewayHost,
+		"user":        user,
 	})
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Rendering HTML: %v", err), http.StatusInternalServerError)
 	}
+}
+
+func (s *Server) username(r *http.Request) (string, error) {
+	if s.authSettings.FakeUser != "" {
+		return s.authSettings.FakeUser, nil
+	}
+
+	url, err := url.Parse(s.authSettings.Proxy)
+	if err != nil {
+		return "", fmt.Errorf("fetching userinfo: %v", err)
+	}
+
+	url.Path = "/oauth2/userinfo"
+
+	userInfoReq, err := http.NewRequest(
+		"GET", url.String(), nil)
+	if err != nil {
+		return "", fmt.Errorf("fetching userinfo: %v", err)
+	}
+
+	// Forward all the cookies
+	for _, c := range r.Cookies() {
+		userInfoReq.AddCookie(c)
+	}
+	resp, err := http.DefaultClient.Do(userInfoReq)
+	if err != nil {
+		return "", fmt.Errorf("fetching userinfo: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fetching userinfo: bad status code: %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+
+	authResponse := AuthResponse{}
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&authResponse)
+	if err != nil {
+		return "", fmt.Errorf("parsing userinfo: %v", err)
+	}
+	if authResponse.User == "" {
+		return "", fmt.Errorf("userinfo empty")
+	}
+
+	return authResponse.User, nil
 }
 
 // Creates an environment.
@@ -69,7 +122,12 @@ func (s *Server) create(res http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := "nicks" // TODO(nick): Get an actual authenticated user.
+	user, err := s.username(r)
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Reading username: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	spec := env.EnvSpec{
 		Repo:   r.FormValue("repo"),
 		Branch: r.FormValue("branch"),
@@ -98,8 +156,13 @@ func (s *Server) create(res http.ResponseWriter, r *http.Request) {
 
 // Deletes an environment. One environment per user.
 func (s *Server) deleteEnv(res http.ResponseWriter, r *http.Request) {
-	user := "nicks" // TODO(nick): Get an actual authenticated user.
-	err := s.envClient.DeleteEnv(r.Context(), user)
+	user, err := s.username(r)
+	if err != nil {
+		http.Error(res, fmt.Sprintf("Reading username: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	err = s.envClient.DeleteEnv(r.Context(), user)
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Deleting env: %v", err), http.StatusInternalServerError)
 		return

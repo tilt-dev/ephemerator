@@ -26,7 +26,6 @@ spec:
         - --whitelist-domain=".preview.localhost"
         - --cookie-domain=".preview.localhost"
         - --pass-user-headers=false
-        - --skip-provider-button
         env:
         - name: 'EPH_ALLOWLIST'
         - name: 'EPH_GATEWAY_HOST'

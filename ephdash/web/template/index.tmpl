@@ -12,7 +12,16 @@
     <h2>Spin up the ephemeral environment you need.</h2>
 
     <aside>
-      Allowed repos:
+      <div class="flexrow">
+        <div>Current user: <b>{{.user}}</b></div>
+        <div>
+          <form method="POST" action="/oauth2/sign_out">
+            <input class="is-inline" type="submit" value="Sign out"/>
+          </form>
+        </div>
+      </div>
+          
+      <div>Allowed repos:<div>
 
       <ul>
         {{$repoBase := .allowlist.RepoBase}}

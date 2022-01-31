@@ -63,6 +63,11 @@ input[type="submit"] {
   margin-top: 48px;
 }
 
+input.is-inline {
+  margin-top: 0;
+  padding: 8px;
+}
+
 input[type="submit"]:hover {
   color: #F6685C;
   border-color: #F6685C;
@@ -83,4 +88,10 @@ input[type="submit"].danger:hover {
   border-radius: 4px;
   margin: 8px;
   padding: 16px;
+}
+
+.flexrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
