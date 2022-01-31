@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/part-of: ephemerator.tilt.dev
     app.kubernetes.io/name: ephconfig
 data:
-  gatewayHost: "localhost"
+  gatewayHost: "preview.localhost"
   allowlist: |
     repoBase: https://github.com/tilt-dev
     repoNames:
