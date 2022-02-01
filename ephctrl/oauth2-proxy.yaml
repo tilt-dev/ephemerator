@@ -26,6 +26,7 @@ spec:
         - --whitelist-domain=".preview.localhost"
         - --cookie-domain=".preview.localhost"
         - --pass-user-headers=false
+        - --custom-sign-in-logo=/src/logo.svg
         env:
         - name: 'EPH_ALLOWLIST'
         - name: 'EPH_GATEWAY_HOST'
@@ -53,7 +54,7 @@ spec:
             configMapKeyRef:
               name: ephoauth2
               key: OAUTH2_PROXY_COOKIE_SECURE
-        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        image: oauth2-proxy
         imagePullPolicy: Always
         name: oauth2-proxy
         ports:
