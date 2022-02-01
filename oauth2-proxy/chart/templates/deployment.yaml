@@ -58,7 +58,6 @@ spec:
               name: ephoauth2
               key: OAUTH2_PROXY_COOKIE_SECURE
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-        imagePullPolicy: Always
         name: oauth2-proxy
         ports:
         - containerPort: 4180

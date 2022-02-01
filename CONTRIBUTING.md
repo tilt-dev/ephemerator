@@ -54,16 +54,12 @@ To run with authentication, you'll need to:
 python -c 'import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
 ```
 
-- Create a file under `.secrets/ephoauth2.yaml`
+- Create a file under `.secrets/values-dev.yaml`
 
 ```
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ephoauth2
-data:
-  OAUTH2_PROXY_CLIENT_ID: YOUR_CLIENT_ID_FROM_GITHUB
-  OAUTH2_PROXY_CLIENT_SECRET: YOUR_CLIENT_SECRET_FROM_GITHUB
-  OAUTH2_PROXY_COOKIE_SECRET: YOUR_COOKIE_SECRET
-  OAUTH2_PROXY_COOKIE_SECURE: "false"
+oauth2Proxy:
+  clientID: YOUR_CLIENT_ID_FROM_GITHUB
+  clientSecret: YOUR_CLIENT_SECRET_FROM_GITHUB
+  cookieSecret: YOUR_COOKIE_SECRET
+  cookieSecure: "false"
 ```

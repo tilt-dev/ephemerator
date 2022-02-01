@@ -8,6 +8,14 @@ image:
 
 gateway:
   host: "preview.localhost"
+  tlsSecretName: ""
 
 github:
   org: ""
+
+# See CONTRIBUTING.md for how to generate these secrets.
+oauth2Proxy:
+  clientID: ""
+  clientSecret: ""
+  cookieSecret: ""
+  cookieSecure: false

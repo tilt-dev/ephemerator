@@ -243,6 +243,7 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 		return nil, nil
 	}
 
+	automountServiceAccountToken := false
 	// Credits:
 	// https://radu-matei.com/blog/kubernetes-e2e-kind-brigade/
 	// https://github.com/kubernetes-sigs/kind/issues/303
@@ -250,7 +251,9 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 	privileged := true
 	hostPathDirectory := v1.HostPathDirectory
 	spec := v1.PodSpec{
-		DNSPolicy: "None",
+		AutomountServiceAccountToken: &automountServiceAccountToken,
+		ServiceAccountName:           "ephrunner-service-account",
+		DNSPolicy:                    "None",
 		DNSConfig: &v1.PodDNSConfig{
 			Nameservers: []string{"1.1.1.1", "1.0.0.1"},
 		},

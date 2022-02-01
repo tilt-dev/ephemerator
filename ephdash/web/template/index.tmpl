@@ -83,9 +83,9 @@
         
         <ul>
           <li>Spec: <b>{{if .env.ConfigMap}}OK{{else}}Missing{{end}}</b></li>
-          <li>Cluster: <b>{{if and .env.Pod .env.Pod.Status.Phase}}{{.env.Pod.Status.Phase}}{{else}}Pending{{end}}</b></li>
+          <li>Cluster: <b>{{if .env.Pod}}{{if .env.Pod.Status.Phase}}{{.env.Pod.Status.Phase}}{{else}}Pending{{end}}{{else}}Pending{{end}}</b></li>
           <li>Networking: <b>{{if .env.Service}}OK{{else}}Pending{{end}}</b></li>
-          <li>Expiration: <b class="expiration">{{if and .env.ConfigMap .env.ConfigMap.Data.expiration}}{{.env.ConfigMap.Data.expiration}}{{else}}Pending{{end}}</b> <b class="expirationCountdown"></b></li>
+          <li>Expiration: <b class="expiration">{{if .env.ConfigMap}}{{if .env.ConfigMap.Data.expiration}}{{.env.ConfigMap.Data.expiration}}{{else}}Pending{{end}}{{else}}Pending{{end}}</b> <b class="expirationCountdown"></b></li>
         </ul>
 
         <div>Setup Logs:</div>

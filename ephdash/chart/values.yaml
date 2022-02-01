@@ -5,3 +5,7 @@ replicaCount: 1
 image:
   repository: ephdash
   tag: ""
+
+auth:
+  fakeUser: ""
+  proxy: ""

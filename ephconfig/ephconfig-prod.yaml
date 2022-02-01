@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ephconfig
+  labels:
+    app.kubernetes.io/part-of: ephemerator.tilt.dev
+    app.kubernetes.io/name: ephconfig
+data:
+  gatewayHost: "preview.tilt.build"
+  allowlist: |
+    repoBase: https://github.com/tilt-dev
+    repoNames:
+    - tilt-example-html
+    - tilt-example-python
+    - tilt-example-csharp
+    - tilt-example-java
+    - tilt-example-go
+    - tilt-example-nodejs
+  

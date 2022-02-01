@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ephoauth2
+data:
+  OAUTH2_PROXY_CLIENT_ID: "{{.Values.oauth2Proxy.clientID}}"
+  OAUTH2_PROXY_CLIENT_SECRET: "{{.Values.oauth2Proxy.clientSecret}}"
+  OAUTH2_PROXY_COOKIE_SECRET: "{{.Values.oauth2Proxy.cookieSecret}}"
+  OAUTH2_PROXY_COOKIE_SECURE: "{{.Values.oauth2Proxy.cookieSecure}}"

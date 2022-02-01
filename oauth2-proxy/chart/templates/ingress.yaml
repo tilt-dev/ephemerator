@@ -6,6 +6,11 @@ metadata:
     app.kubernetes.io/part-of: ephemerator.tilt.dev
     app.kubernetes.io/name: oauth2-proxy
 spec:
+{{- if .Values.gateway.tlsSecretName }}
+  tls:
+  - secretName: {{ .Values.gateway.tlsSecretName }}
+{{- end }}
+  
   ingressClassName: nginx
   rules:
   - host: {{.Values.gateway.host}}
