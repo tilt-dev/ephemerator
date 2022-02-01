@@ -28,12 +28,6 @@ docker_build(
   dockerfile='./tilt-upper.dockerfile',
   match_in_env_vars=True)
 
-docker_build(
-  'oauth2-proxy',
-  '.',
-  only=["./logo.svg"],
-  dockerfile='./oauth2-proxy.dockerfile')
-
 local_resource(
   'ephctrl-compile',
   'make build-static',
@@ -52,14 +46,12 @@ docker_build_with_restart(
   ]
 )
 
-k8s_yaml('ephctrl.yaml')
+helm_set = []
 
 if USE_OAUTH2:
-  k8s_yaml('ingress-oauth2.yaml')
-  k8s_yaml('oauth2-proxy.yaml')
-else:
-  k8s_yaml('ingress-no-auth.yaml')
+  helm_set += ['auth.enabled=true']
 
+k8s_yaml(helm('./chart', set=helm_set))
 k8s_resource('ephctrl', port_forwards=['9443:9443'], resource_deps=['ephctrl-compile'])
 
 k8s_custom_deploy(

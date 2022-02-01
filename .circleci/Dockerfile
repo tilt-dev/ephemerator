@@ -7,3 +7,6 @@ ENV PATH=/root/go/bin:/usr/local/go/bin:$PATH
 
 RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
   sh -s -- -b $(go env GOPATH)/bin v1.43.0
+
+# Install Helm
+RUN curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash

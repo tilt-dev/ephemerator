@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ephdash
+  labels:
+    app.kubernetes.io/name: "ephdash"
+    app.kubernetes.io/part-of: "ephemerator.tilt.dev"
+spec:
+  selector:
+    app.kubernetes.io/name: ephdash
+    app.kubernetes.io/part-of: ephemerator.tilt.dev
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080

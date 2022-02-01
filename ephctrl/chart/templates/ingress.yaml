@@ -5,13 +5,15 @@ metadata:
   labels:
     app.kubernetes.io/part-of: ephemerator.tilt.dev
     app.kubernetes.io/name: ephgateway
+  {{- if .Values.auth.enabled}}
   annotations:
-    nginx.ingress.kubernetes.io/auth-url: "http://preview.localhost/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "http://preview.localhost/oauth2/sign_in?rd=http://$host$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-url: "{{.Values.gateway.scheme}}://{{.Values.gateway.host}}/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "{{.Values.gateway.scheme}}://{{.Values.gateway.host}}/oauth2/sign_in?rd=http://$host$escaped_request_uri"
+  {{- end}}
 spec:
   ingressClassName: nginx
   rules:
-  - host: preview.localhost
+  - host: {{.Values.gateway.host}}
     http:
       paths:
       - path: /

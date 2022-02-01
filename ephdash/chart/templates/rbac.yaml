@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ephdash-service-account
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ephdash-role
+rules:
+- apiGroups: [ "" ]
+  resources: [ "pods", "pods/log", "services" ]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [ "" ]
+  resources: [ "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ephdash-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ephdash-role
+subjects:
+- kind: ServiceAccount
+  name: ephdash-service-account
+  namespace: default
