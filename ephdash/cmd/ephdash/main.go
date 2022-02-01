@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,7 +16,17 @@ import (
 	"github.com/tilt-dev/ephemerator/ephdash/pkg/server"
 )
 
+var authFakeUser = flag.String(
+	"auth-fake-user", "",
+	"When specified, we'll use a fake default user instead of requesting a user from the oauth proxy.")
+
+var authProxy = flag.String(
+	"auth-proxy", "",
+	"URL of the oauth2-proxy inside the cluster, e.g., 'http://oauth-proxy'. Must not end in a slash.")
+
 func main() {
+	flag.Parse()
+
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("kubernetes connection setup failed: %v", err)
@@ -39,7 +50,17 @@ func main() {
 		log.Fatal("server setup failed")
 	}
 
-	handler, err := server.NewServer(envClient, allowlist, gatewayHost)
+	authSettings := server.AuthSettings{
+		FakeUser: *authFakeUser,
+		Proxy:    *authProxy,
+	}
+
+	err = authSettings.Validate()
+	if err != nil {
+		log.Fatalf("server setup failed: %v", err)
+	}
+
+	handler, err := server.NewServer(envClient, allowlist, gatewayHost, authSettings)
 	if err != nil {
 		log.Fatal(err)
 	}

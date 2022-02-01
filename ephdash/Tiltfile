@@ -1,4 +1,4 @@
-load_dynamic('../ephconfig/Tiltfile')
+load('../ephconfig/Tiltfile', 'USE_OAUTH2')
 load('ext://restart_process', 'docker_build_with_restart')
 
 local_resource(
@@ -6,10 +6,16 @@ local_resource(
   'make build-static',
   deps=['./cmd', './pkg', './web'])
 
+entrypoint = ['/usr/local/bin/ephdash']
+if USE_OAUTH2:
+  entrypoint += ['--auth-proxy=http://oauth2-proxy:4180']
+else:
+  entrypoint += ['--auth-fake-user=nicks']
+
 docker_build_with_restart(
   'ephdash',
   '.',
-  entrypoint='/usr/local/bin/ephdash',
+  entrypoint=entrypoint,
   dockerfile='ephdash.dockerfile',
   only=[
     './build/ephdash',
@@ -20,4 +26,7 @@ docker_build_with_restart(
 )
 
 k8s_yaml('ephdash.yaml')
-k8s_resource('ephdash', port_forwards=['8080'], resource_deps=['ephdash-compile'])
+k8s_resource('ephdash',
+             port_forwards=['8080'],
+             links=['http://preview.localhost'],
+             resource_deps=['ephdash-compile'])
