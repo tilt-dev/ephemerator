@@ -1,0 +1,22 @@
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: ephctrl
+  tag: ""
+
+dindImage:
+  repository: ephctrl-dind
+  tag: ""
+
+tiltUpperImage:
+  repository: ephctrl-tilt-upper
+  tag: ""
+
+auth:
+  enabled: false
+
+gateway:
+  scheme: http
+  host: preview.localhost
