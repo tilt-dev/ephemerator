@@ -28,6 +28,12 @@ docker_build(
   dockerfile='./tilt-upper.dockerfile',
   match_in_env_vars=True)
 
+docker_build(
+  'oauth2-proxy',
+  '.',
+  only=["./logo.svg"],
+  dockerfile='./oauth2-proxy.dockerfile')
+
 local_resource(
   'ephctrl-compile',
   'make build-static',
