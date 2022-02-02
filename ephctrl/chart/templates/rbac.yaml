@@ -35,4 +35,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ephctrl-service-account
-  namespace: default
+  namespace: {{ .Release.namespace | default "default" }}

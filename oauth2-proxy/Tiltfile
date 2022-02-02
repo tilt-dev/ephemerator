@@ -4,4 +4,4 @@ docker_build(
   '.',
   only=["./logo.svg"])
 
-k8s_yaml(helm('./chart'))
+k8s_yaml(helm('./chart', values=["../.secrets/values-dev.yaml"]))
