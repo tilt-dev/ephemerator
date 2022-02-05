@@ -20,16 +20,6 @@
           </form>
         </div>
       </div>
-          
-      <div>Allowed repos:<div>
-
-      <ul>
-        {{$repoBase := .allowlist.RepoBase}}
-        {{range .allowlist.RepoNames}}
-          {{$repo := printf "%s/%s" $repoBase .}}
-          <li><a href="{{$repo}}">{{$repo}}</a></li>
-        {{end}}
-      </ul>
     </aside>
 
     {{if .envError}}
@@ -40,15 +30,27 @@
         <form method="POST" action="/create">
         <div>
           <label for="repo">Repo:</label>
-          <input type="text" id="repo" name="repo" size="40" value="https://github.com/tilt-dev/tilt-example-html">
-        </div>
-        <div>
-          <label for="path">Path:</label>
-          <input type="text" id="path" name="path" size="40" value="0-base">
+          <select name="repo" id="repo" onchange="onRepoChange()">
+            {{range .repoOptions}}
+            <option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
         </div>
         <div>
           <label for="branch">Branch:</label>
-          <input type="text" id="branch" name="branch" size="40" value="master">
+          <select name="branch" id="branch" onchange="onBranchChange()">
+            {{range .branchOptions}}
+            <option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </div>
+        <div>
+          <label for="path">Path:</label>
+          <select name="path" id="path">
+            {{range .pathOptions}}
+            <option value="{{.Value}}">{{.Name}}</option>
+            {{end}}
+          </select>
         </div>
         <div>
           <input type="submit" value="Create env"/>
@@ -83,7 +85,17 @@
         
         <ul>
           <li>Spec: <b>{{if .env.ConfigMap}}OK{{else}}Missing{{end}}</b></li>
-          <li>Cluster: <b>{{if .env.Pod}}{{if .env.Pod.Status.Phase}}{{.env.Pod.Status.Phase}}{{else}}Pending{{end}}{{else}}Pending{{end}}</b></li>
+          <li>Cluster: <b>
+            {{if .env.Pod}}
+              {{if .env.Pod.ObjectMeta.DeletionTimestamp}}
+                Deleting
+              {{else if .env.Pod.Status.Phase}}
+                {{.env.Pod.Status.Phase}}
+              {{else}}
+                Pending
+              {{end}}
+            {{else}}Pending{{end}}
+          </b></li>
           <li>Networking: <b>{{if .env.Service}}OK{{else}}Pending{{end}}</b></li>
           <li>Expiration: <b class="expiration">{{if .env.ConfigMap}}{{if .env.ConfigMap.Data.expiration}}{{.env.ConfigMap.Data.expiration}}{{else}}Pending{{end}}{{else}}Pending{{end}}</b> <b class="expirationCountdown"></b></li>
         </ul>

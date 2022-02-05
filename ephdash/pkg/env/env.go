@@ -109,7 +109,7 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 		return nil, err
 	}
 
-	if env.ConfigMap == nil {
+	if env.ConfigMap == nil && env.Pod == nil {
 		return nil, nil
 	}
 	return env, nil

@@ -7,5 +7,5 @@ metadata:
     app.kubernetes.io/name: ephrunner
 data:
   repo: https://github.com/tilt-dev/tilt-example-html
-  path: 0-base
+  path: 0-base/Tiltfile
   branch: master

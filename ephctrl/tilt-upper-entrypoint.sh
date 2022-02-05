@@ -28,9 +28,9 @@ mkdir -p src
 git clone "$TILT_UPPER_REPO" src
 cd src
 git checkout "$TILT_UPPER_BRANCH"
-cd "$TILT_UPPER_PATH"
+cd "$(dirname "$TILT_UPPER_PATH")"
 
 export DO_NOT_TRACK="1"
 ctlptl create registry ctlptl-registry --port=5000
 ctlptl create cluster kind --registry=ctlptl-registry
-tilt up --host=0.0.0.0
+tilt up -f "$(basename "$TILT_UPPER_PATH")" --host=0.0.0.0

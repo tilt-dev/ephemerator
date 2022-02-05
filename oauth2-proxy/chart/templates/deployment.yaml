@@ -24,8 +24,17 @@ spec:
         - --upstream=file:///dev/null
         - --http-address=0.0.0.0:4180
         - --whitelist-domain=".{{.Values.gateway.host}}"
+        - --cookie-domain="{{.Values.gateway.host}}"
         - --cookie-domain=".{{.Values.gateway.host}}"
-        - --pass-user-headers=false
+        
+        # Ensures that X-Auth-Request-User is sent to nginx
+        - --pass-user-headers=true
+        - --set-xauthrequest=true
+
+        # Ensures that X-Auth-Request-Access-Token is sent to nginx
+        - --pass-access-token=true
+        - --set-authorization-header=true
+        
         - --custom-sign-in-logo=/src/logo.svg
         {{- if .Values.github.org }}
         - --github-org={{.Values.github.org}}

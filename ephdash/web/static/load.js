@@ -26,3 +26,19 @@ window.addEventListener('load', () => {
     setInterval(update, 1000)
   }
 })
+
+function onRepoChange() {
+  let repoSelect = document.querySelector('#repo')
+  var params = new URLSearchParams(window.location.search)
+  params.set("repo", repoSelect.value)
+  window.location.search = params.toString()
+}
+
+function onBranchChange() {
+  let repoSelect = document.querySelector('#repo')
+  let branchSelect = document.querySelector('#branch')
+  var params = new URLSearchParams(window.location.search)
+  params.set("repo", repoSelect.value)
+  params.set("branch", branchSelect.value)
+  window.location.search = params.toString()
+}
