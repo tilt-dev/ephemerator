@@ -1,16 +1,20 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
-	"net/url"
+	"path/filepath"
+	"strings"
 
+	"github.com/google/go-github/v42/github"
 	"github.com/gorilla/mux"
 	"github.com/tilt-dev/ephemerator/ephconfig"
 	"github.com/tilt-dev/ephemerator/ephdash/pkg/env"
 	"github.com/tilt-dev/ephemerator/ephdash/web/static"
+	"golang.org/x/oauth2"
+
 	webtemplate "github.com/tilt-dev/ephemerator/ephdash/web/template"
 )
 
@@ -26,7 +30,12 @@ type Server struct {
 }
 
 func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist, gatewayHost string, authSettings AuthSettings) (*Server, error) {
-	s := &Server{envClient: envClient, allowlist: allowlist, gatewayHost: gatewayHost, authSettings: authSettings}
+	s := &Server{
+		envClient:    envClient,
+		allowlist:    allowlist,
+		gatewayHost:  gatewayHost,
+		authSettings: authSettings,
+	}
 
 	r := mux.NewRouter()
 	staticContent := http.FileServer(http.FS(static.Content))
@@ -55,12 +64,19 @@ func (s *Server) index(res http.ResponseWriter, r *http.Request) {
 	}
 
 	env, envError := s.envClient.GetEnv(r.Context(), user)
+	repoOptions, selectedRepo := s.repoOptions(r)
+	githubClient := s.githubClient(r)
+	branchOptions, selectedBranch := s.branchOptions(r, githubClient, selectedRepo)
+	pathOptions := s.pathOptions(r, githubClient, selectedRepo, selectedBranch)
+
 	err = s.tmpl.ExecuteTemplate(res, "index.tmpl", map[string]interface{}{
-		"allowlist":   s.allowlist,
-		"env":         env,
-		"envError":    envError,
-		"gatewayHost": s.gatewayHost,
-		"user":        user,
+		"env":           env,
+		"envError":      envError,
+		"gatewayHost":   s.gatewayHost,
+		"user":          user,
+		"repoOptions":   repoOptions,
+		"branchOptions": branchOptions,
+		"pathOptions":   pathOptions,
 	})
 	if err != nil {
 		http.Error(res, fmt.Sprintf("Rendering HTML: %v", err), http.StatusInternalServerError)
@@ -72,43 +88,11 @@ func (s *Server) username(r *http.Request) (string, error) {
 		return s.authSettings.FakeUser, nil
 	}
 
-	url, err := url.Parse(s.authSettings.Proxy)
-	if err != nil {
-		return "", fmt.Errorf("fetching userinfo: %v", err)
-	}
-
-	url.Path = "/oauth2/userinfo"
-
-	userInfoReq, err := http.NewRequest(
-		"GET", url.String(), nil)
-	if err != nil {
-		return "", fmt.Errorf("fetching userinfo: %v", err)
-	}
-
-	// Forward all the cookies
-	for _, c := range r.Cookies() {
-		userInfoReq.AddCookie(c)
-	}
-	resp, err := http.DefaultClient.Do(userInfoReq)
-	if err != nil {
-		return "", fmt.Errorf("fetching userinfo: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("fetching userinfo: bad status code: %d", resp.StatusCode)
-	}
-	defer resp.Body.Close()
-
-	authResponse := AuthResponse{}
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&authResponse)
-	if err != nil {
-		return "", fmt.Errorf("parsing userinfo: %v", err)
-	}
-	if authResponse.User == "" {
+	user := r.Header.Get("X-Auth-Request-User")
+	if user == "" {
 		return "", fmt.Errorf("userinfo empty")
 	}
-
-	return authResponse.User, nil
+	return user, nil
 }
 
 // Creates an environment.
@@ -169,4 +153,149 @@ func (s *Server) deleteEnv(res http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(res, r, "/", http.StatusSeeOther)
+}
+
+type FormOption struct {
+	Name     string
+	Value    string
+	Selected bool
+}
+
+// Generate all the valid options for the repo form.
+// Returns the selected repo URL.
+func (s *Server) repoOptions(r *http.Request) ([]FormOption, string) {
+	result := []FormOption{}
+	selected := ""
+	qRepo := r.URL.Query().Get("repo")
+	for _, repo := range s.allowlist.RepoNames {
+		v := fmt.Sprintf("%s/%s", s.allowlist.RepoBase, repo)
+		n := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(v, "http://"), "https://"), "github.com/")
+		s := qRepo == v
+		o := FormOption{
+			Value:    v,
+			Name:     n,
+			Selected: s,
+		}
+		result = append(result, o)
+
+		if s {
+			selected = v
+		}
+	}
+	if selected == "" && len(result) > 0 {
+		result[0].Selected = true
+		selected = result[0].Value
+	}
+	return result, selected
+}
+
+// Create a github go client.
+// These use the users' auth token for rate-limiting, so
+// need to be created per-request.
+func (s *Server) githubClient(r *http.Request) *github.Client {
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: r.Header.Get("X-Auth-Request-Access-Token")},
+	)
+	tc := oauth2.NewClient(r.Context(), ts)
+	return github.NewClient(tc)
+}
+
+// Splits a github URL into an (owner, repoName) pair.
+func (s *Server) toGithubOwnerAndRepo(repoURL string) (string, string) {
+	if !strings.HasPrefix(repoURL, "https://github.com/") {
+		return "", ""
+	}
+
+	path := strings.TrimPrefix(repoURL, "https://github.com/")
+	split := strings.Split(path, "/")
+	if len(split) < 2 {
+		return "", ""
+	}
+	return split[0], split[1]
+}
+
+var defaultBranchName = "master"
+
+// Generate a list of valid branches for the given repo.
+// Returns the SHA hash of the selected branch.
+func (s *Server) branchOptions(r *http.Request, client *github.Client, repoURL string) ([]FormOption, string) {
+	result := []FormOption{}
+	selected := ""
+
+	branchList := []*github.Branch{&github.Branch{Name: &defaultBranchName}}
+	owner, repoName := s.toGithubOwnerAndRepo(repoURL)
+	if repoName != "" {
+		branches, _, err := client.Repositories.ListBranches(r.Context(), owner, repoName, nil)
+		if err != nil {
+			log.Printf("error: fetching branches %s/%s: %v", owner, repoName, err)
+		} else {
+			branchList = branches
+		}
+	}
+
+	qBranch := r.URL.Query().Get("branch")
+	for _, b := range branchList {
+		if b.Name == nil {
+			continue
+		}
+		name := *b.Name
+		s := qBranch == name
+		o := FormOption{
+			Value:    name,
+			Name:     name,
+			Selected: s,
+		}
+		result = append(result, o)
+
+		if s && b.Commit != nil && b.Commit.SHA != nil {
+			selected = *(b.Commit.SHA)
+		}
+	}
+
+	if selected == "" && len(branchList) > 0 {
+		result[0].Selected = true
+		b := branchList[0]
+		if b.Name != nil && *b.Name == result[0].Value && b.Commit != nil && b.Commit.SHA != nil {
+			selected = *(b.Commit.SHA)
+		}
+	}
+
+	return result, selected
+}
+
+// Generate a list of valid paths with Tiltfiles for the given repo/branch.
+func (s *Server) pathOptions(r *http.Request, client *github.Client, repoURL, sha string) []FormOption {
+	owner, repoName := s.toGithubOwnerAndRepo(repoURL)
+	if repoName == "" {
+		return nil
+	}
+
+	if sha == "" {
+		return nil
+	}
+
+	tree, _, err := client.Git.GetTree(r.Context(), owner, repoName, sha, true /* recursive */)
+	if err != nil {
+		log.Printf("error: fetching tree %s/%s: %v", owner, repoName, err)
+		return nil
+	}
+
+	result := []FormOption{}
+
+	for _, entry := range tree.Entries {
+		if entry.Path == nil {
+			continue
+		}
+
+		path := *entry.Path
+		basename := filepath.Base(path)
+		if basename == "Tiltfile" || strings.HasSuffix(basename, ".tiltfile") {
+			result = append(result, FormOption{
+				Value: path,
+				Name:  path,
+			})
+		}
+	}
+
+	return result
 }

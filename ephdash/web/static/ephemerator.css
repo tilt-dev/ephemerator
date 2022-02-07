@@ -41,13 +41,15 @@ label {
   min-width: 64px;
 }
 
-input[type="text"] {
+input[type="text"],
+select {
   border: 2px outset #606060;
   border-radius: 5px;
   font-size: 18px;
   font-family: nono-sans, sans-serif;
   margin-top: 8px;
   display: inline-block;
+  min-width: 20em;
 }
 
 input[type="submit"] {
@@ -64,7 +66,7 @@ input[type="submit"] {
 }
 
 input.is-inline {
-  margin-top: 0;
+  margin: 0 0 0 32px;
   padding: 8px;
 }
 
