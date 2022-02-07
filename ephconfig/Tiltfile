@@ -2,5 +2,7 @@
 k8s_yaml('ephconfig-dev.yaml')
 
 USE_OAUTH2 = os.path.exists('../.secrets/values-dev.yaml')
+USE_TLS = False
 if USE_OAUTH2:
-  load_dynamic('../oauth2-proxy/Tiltfile')
+  symbols = load_dynamic('../oauth2-proxy/Tiltfile')
+  USE_TLS = symbols['USE_TLS']

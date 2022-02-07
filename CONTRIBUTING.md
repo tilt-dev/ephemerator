@@ -63,3 +63,22 @@ oauth2Proxy:
   cookieSecret: YOUR_COOKIE_SECRET
   cookieSecure: "false"
 ```
+
+## TLS
+
+By default, the ephemerator will run over http. But it can be helpful to run
+locally over HTTPS/TLS to make sure the websockets are behaving correctly.
+
+- Install [mkcert](https://github.com/FiloSottile/mkcert)
+
+- Run:
+
+```
+mkcert -install
+mkcert preview.localhost "*.preview.localhost"
+mkdir .secrets
+cp ./path-to-cert.pem .secrets/cert.pem
+cp ./path-to-key.pem .secrets/key.pem
+```
+
+Tilt will automatically pick up the new certs and use them for the ingress.

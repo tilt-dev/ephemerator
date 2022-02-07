@@ -59,6 +59,15 @@ func NewServer(envClient *env.Client, allowlist *ephconfig.Allowlist, gatewayHos
 func (s *Server) index(res http.ResponseWriter, r *http.Request) {
 	user, err := s.username(r)
 	if err != nil {
+		if r.Host != s.gatewayHost {
+			res.WriteHeader(http.StatusNotFound)
+			_ = s.tmpl.ExecuteTemplate(res, "not-found.tmpl", map[string]interface{}{
+				"host":        r.Host,
+				"gatewayHost": s.gatewayHost,
+			})
+			return
+		}
+
 		http.Error(res, fmt.Sprintf("Reading username: %v", err), http.StatusInternalServerError)
 		return
 	}
