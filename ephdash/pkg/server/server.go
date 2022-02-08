@@ -121,7 +121,7 @@ func (s *Server) create(res http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spec := env.EnvSpec{
+	spec := ephconfig.EnvSpec{
 		Repo:   r.FormValue("repo"),
 		Branch: r.FormValue("branch"),
 		Path:   r.FormValue("path"),
@@ -132,7 +132,7 @@ func (s *Server) create(res http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = ephconfig.IsAllowed(s.allowlist, spec.Repo)
+	err = ephconfig.IsAllowed(s.allowlist, spec)
 	if err != nil {
 		http.Error(res, fmt.Sprintf("May not create env for repo %q: %v", spec.Repo, err), http.StatusForbidden)
 		return

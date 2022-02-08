@@ -22,12 +22,6 @@ type Env struct {
 	PodLogs   *bytes.Buffer
 }
 
-type EnvSpec struct {
-	Repo   string
-	Path   string
-	Branch string
-}
-
 type Client struct {
 	clientset *kubernetes.Clientset
 	namespace string
@@ -136,7 +130,7 @@ func (c *Client) DeleteEnv(ctx context.Context, name string) error {
 }
 
 // Set the configuration for the env.
-func (c *Client) SetEnvSpec(ctx context.Context, name string, spec EnvSpec) error {
+func (c *Client) SetEnvSpec(ctx context.Context, name string, spec ephconfig.EnvSpec) error {
 	desired := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

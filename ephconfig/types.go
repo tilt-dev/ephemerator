@@ -2,6 +2,8 @@ package ephconfig
 
 import (
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -12,7 +14,31 @@ type Allowlist struct {
 	RepoNames []string `json:"repoNames" yaml:"repoNames"`
 }
 
-func IsAllowed(allowlist *Allowlist, repo string) error {
+type EnvSpec struct {
+	Repo   string
+	Branch string
+	Path   string
+}
+
+// Validate the environment spec for anything that looks suspicious:
+// - The repo must match our allow list.
+// - The path must be a valid relative path.
+// - The branch must look like a reasonable branch name.
+func IsAllowed(allowlist *Allowlist, spec EnvSpec) error {
+	err := isRepoAllowed(allowlist, spec.Repo)
+	if err != nil {
+		return err
+	}
+
+	err = isBranchAllowed(spec.Branch)
+	if err != nil {
+		return err
+	}
+
+	return isPathAllowed(spec.Path)
+}
+
+func isRepoAllowed(allowlist *Allowlist, repo string) error {
 	parts := strings.Split(repo, "/")
 	if len(parts) < 2 {
 		return fmt.Errorf("Forbidden: malformed repo: %s", repo)
@@ -33,6 +59,31 @@ func IsAllowed(allowlist *Allowlist, repo string) error {
 
 	if !isAllowed {
 		return fmt.Errorf("Forbidden: unrecognized repo name: %s", repo)
+	}
+
+	return nil
+}
+
+var branchRe = regexp.MustCompile("^[a-zA-Z][a-zA-Z_/0-9-]*$")
+
+func isBranchAllowed(branch string) error {
+	if !branchRe.MatchString(branch) {
+		return fmt.Errorf("Forbidden: malformed branch name")
+	}
+	return nil
+}
+
+var pathRe = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z_/0-9.-]*$")
+
+func isPathAllowed(path string) error {
+	if filepath.IsAbs(path) {
+		return fmt.Errorf("Forbidden: path must be relative")
+	}
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("Forbidden: no '..' references allowed in path")
+	}
+	if !pathRe.MatchString(path) {
+		return fmt.Errorf("Forbidden: malformed path")
 	}
 	return nil
 }
