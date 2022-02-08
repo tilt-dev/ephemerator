@@ -9,3 +9,6 @@ image:
 auth:
   fakeUser: ""
   proxy: ""
+
+slack:
+  webhook: ""

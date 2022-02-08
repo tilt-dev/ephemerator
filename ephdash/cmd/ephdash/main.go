@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -38,7 +39,10 @@ func main() {
 		log.Fatalf("kubernetes connection setup failed: %v", err)
 	}
 
-	envClient := env.NewClient(clientset, os.Getenv("NAMESPACE"))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	envClient := env.NewClient(ctx, clientset, os.Getenv("NAMESPACE"), os.Getenv("EPH_SLACK_WEBHOOK"))
 
 	allowlist, err := ephconfig.ReadAllowlist()
 	if err != nil {

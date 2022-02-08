@@ -40,7 +40,6 @@ spec:
         - --github-org={{.Values.github.org}}
         {{- end }}
         env:
-        - name: 'EPH_ALLOWLIST'
         - name: 'EPH_GATEWAY_HOST'
           valueFrom:
             configMapKeyRef:

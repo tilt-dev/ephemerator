@@ -30,6 +30,7 @@ docker_build "Dockerfile" ephctrl
 docker_build "dind.dockerfile" ephctrl-dind
 docker_build "tilt-upper.dockerfile" ephctrl-tilt-upper
 helm upgrade --install ephctrl ./chart --namespace=ephemerator \
+     --values=../.secrets/values-prod.yaml \
      --set=image.repository="$REPO/ephctrl" \
      --set=image.tag="$TAG" \
      --set=dindImage.repository="$REPO/ephctrl-dind" \
@@ -46,6 +47,7 @@ pushd ephdash
 make build-static
 docker_build "ephdash.dockerfile" ephdash
 helm upgrade --install ephdash ./chart --namespace=ephemerator \
+     --values=../.secrets/values-prod.yaml \
      --set=image.repository="$REPO/ephdash" \
      --set=image.tag="$TAG" \
      --set=auth.proxy=http://oauth2-proxy:4180
