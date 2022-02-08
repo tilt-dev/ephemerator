@@ -1,6 +1,6 @@
 # ephemerator
 
-Ephemerate your life with [ephemeral
+See your future in progress with [ephemeral
 environments](https://ephemeralenvironments.io/).
 
 The ephemerator shows how to create on-demand preview environments
@@ -62,4 +62,6 @@ any language with a Kubernetes client library.
 
 ## License
 
-TK Nick add a license
+Copyright 2022 Windmill Engineering
+
+Licensed under [the Apache License, Version 2.0](LICENSE)
