@@ -8,9 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/tilt-dev/ephemerator/ephconfig"
@@ -225,21 +223,17 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 		return nil, fmt.Errorf("serializing configmap: %v", err)
 	}
 
-	repo := cm.Data["repo"]
-	path := cm.Data["path"]
-	branch := cm.Data["branch"]
-	err = ephconfig.IsAllowed(r.allowlist, repo)
+	spec := ephconfig.EnvSpec{
+		Repo:   cm.Data["repo"],
+		Path:   cm.Data["path"],
+		Branch: cm.Data["branch"],
+	}
+	err = ephconfig.IsAllowed(r.allowlist, spec)
 	if err != nil {
 		log.Error(err, "ignoring configmap")
 
 		// TODO(nick): Find some way to propagate back to the frontend
 		// that we've gotten a permission error.
-		return nil, nil
-	}
-
-	if filepath.IsAbs(path) || strings.Contains(path, "..") {
-		log.Error(fmt.Errorf("Invalid path: %s", path), "ignoring configmap")
-
 		return nil, nil
 	}
 
@@ -250,7 +244,7 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 	// for instructions on how to set up kind-in-kubernetes
 	privileged := true
 	hostPathDirectory := v1.HostPathDirectory
-	spec := v1.PodSpec{
+	podSpec := v1.PodSpec{
 		AutomountServiceAccountToken: &automountServiceAccountToken,
 		ServiceAccountName:           "ephrunner-service-account",
 		DNSPolicy:                    "None",
@@ -316,15 +310,15 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 				Env: []v1.EnvVar{
 					{
 						Name:  "TILT_UPPER_REPO",
-						Value: repo,
+						Value: spec.Repo,
 					},
 					{
 						Name:  "TILT_UPPER_PATH",
-						Value: path,
+						Value: spec.Path,
 					},
 					{
 						Name:  "TILT_UPPER_BRANCH",
-						Value: branch,
+						Value: spec.Branch,
 					},
 				},
 				ReadinessProbe: &v1.Probe{
@@ -359,7 +353,7 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 				configKey: configAnnoValue,
 			},
 		},
-		Spec: spec,
+		Spec: podSpec,
 	}
 
 	err = ctrl.SetControllerReference(cm, pod, r.cluster.GetScheme())

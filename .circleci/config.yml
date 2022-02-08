@@ -9,9 +9,13 @@ jobs:
       - run:
           name: lint
           command: make lint
+      - run:
+          name: unittest
+          command: make unittest
       - setup_remote_docker:
           version: 20.10.6
       - run:
+          # Most of our testing is the big cluster integration tests
           name: cluster-test
           command: |
             ctlptl apply -f ephctrl/cluster.yaml
