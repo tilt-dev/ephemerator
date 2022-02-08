@@ -38,7 +38,8 @@ helm upgrade --install ephctrl ./chart --namespace=ephemerator \
      --set=tiltUpperImage.tag="$TAG" \
      --set=auth.enabled=true \
      --set=gateway.scheme=https \
-     --set=gateway.host=preview.tilt.build
+     --set=gateway.host=preview.tilt.build \
+     --set=gateway.tlsSecretName=preview-tilt-build
 popd
 
 pushd ephdash

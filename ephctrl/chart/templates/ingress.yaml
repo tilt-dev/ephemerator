@@ -8,11 +8,20 @@ metadata:
   {{- if .Values.auth.enabled}}
   annotations:
     nginx.ingress.kubernetes.io/auth-url: "{{.Values.gateway.scheme}}://{{.Values.gateway.host}}/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "{{.Values.gateway.scheme}}://{{.Values.gateway.host}}/oauth2/sign_in?rd=http://$host$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-signin: "{{.Values.gateway.scheme}}://{{.Values.gateway.host}}/oauth2/sign_in?rd={{.Values.gateway.scheme}}://$host$escaped_request_uri"
     nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-User, X-Auth-Request-Access-Token
   {{- end}}
 spec:
   ingressClassName: nginx
+  defaultBackend:
+    service:
+      name: ephdash
+      port:
+        number: 8080
+  {{- if .Values.gateway.tlsSecretName}}
+  tls:
+  - secretName: {{ .Values.gateway.tlsSecretName }}
+  {{- end}}
   rules:
   - host: {{.Values.gateway.host}}
     http:

@@ -20,3 +20,4 @@ auth:
 gateway:
   scheme: http
   host: preview.localhost
+  tlsSecretName: ""

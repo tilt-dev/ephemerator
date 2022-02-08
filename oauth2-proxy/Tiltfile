@@ -1,7 +1,16 @@
+load('ext://secret', 'secret_create_tls')
 
 docker_build(
   'oauth2-proxy',
   '.',
   only=["./logo.svg"])
 
-k8s_yaml(helm('./chart', values=["../.secrets/values-dev.yaml"]))
+cert_file='../.secrets/cert.pem'
+key_file='../.secrets/key.pem'
+USE_TLS = os.path.exists(cert_file) and os.path.exists(key_file)
+helm_set = []
+if USE_TLS:
+  secret_create_tls('preview-localhost', cert=cert_file, key=key_file)
+  helm_set += ["gateway.tlsSecretName=preview-localhost", "oauth2Proxy.cookieSecure=true"]
+
+k8s_yaml(helm('./chart', values=["../.secrets/values-dev.yaml"], set=helm_set))
