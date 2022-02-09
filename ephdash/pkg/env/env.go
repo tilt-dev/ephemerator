@@ -103,7 +103,9 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 		return nil, err
 	}
 
-	if env.ConfigMap == nil && env.Pod == nil {
+	// If the configmap is missing, let the user
+	// create a new one.
+	if env.ConfigMap == nil {
 		return nil, nil
 	}
 	return env, nil
