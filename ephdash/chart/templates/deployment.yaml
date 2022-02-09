@@ -40,6 +40,11 @@ spec:
             configMapKeyRef:
               name: ephconfig
               key: gatewayHost
+        - name: 'EPH_SLACK_WEBHOOK'
+          valueFrom:
+            configMapKeyRef:
+              name: ephnotifications
+              key: slackWebhook
         - name: 'NAMESPACE'
           valueFrom:
             fieldRef:

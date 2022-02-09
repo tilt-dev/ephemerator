@@ -11,7 +11,7 @@ window.addEventListener('load', () => {
   let expirationEl = document.querySelector('.expiration')
   let countdownEl = document.querySelector('.expirationCountdown')
   let expiration = expirationEl && new Date(expirationEl.innerText)
-  if (expiration && countdownEl) {
+  if (expiration && countdownEl && !isNaN(expiration.getTime())) {
     let update = () => {
       let seconds = Math.ceil((expiration.getTime() - Date.now()) / 1000)
       if (seconds < 0) {

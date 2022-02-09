@@ -3,8 +3,11 @@ package env
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
 
 	"github.com/tilt-dev/ephemerator/ephconfig"
 	"golang.org/x/sync/errgroup"
@@ -12,8 +15,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
+	informersv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
+
+var PodGVR = v1.SchemeGroupVersion.WithResource("pods")
+var ServiceGVR = v1.SchemeGroupVersion.WithResource("services")
+var ConfigMapGVR = v1.SchemeGroupVersion.WithResource("configmaps")
 
 type Env struct {
 	ConfigMap *v1.ConfigMap
@@ -23,14 +32,34 @@ type Env struct {
 }
 
 type Client struct {
-	clientset *kubernetes.Clientset
-	namespace string
+	clientset    *kubernetes.Clientset
+	namespace    string
+	pods         informersv1.PodInformer
+	svcs         informersv1.ServiceInformer
+	cms          informersv1.ConfigMapInformer
+	slackWebhook string
 }
 
-func NewClient(clientset *kubernetes.Clientset, namespace string) *Client {
+func NewClient(ctx context.Context, clientset *kubernetes.Clientset, namespace string, slackWebhook string) *Client {
+	options := []informers.SharedInformerOption{
+		informers.WithNamespace(namespace),
+	}
+
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, time.Hour, options...)
+	podInformer := factory.Core().V1().Pods()
+	svcInformer := factory.Core().V1().Services()
+	cmInformer := factory.Core().V1().ConfigMaps()
+	go podInformer.Informer().Run(ctx.Done())
+	go svcInformer.Informer().Run(ctx.Done())
+	go cmInformer.Informer().Run(ctx.Done())
+
 	return &Client{
-		clientset: clientset,
-		namespace: namespace,
+		clientset:    clientset,
+		namespace:    namespace,
+		pods:         podInformer,
+		svcs:         svcInformer,
+		cms:          cmInformer,
+		slackWebhook: slackWebhook,
 	}
 }
 
@@ -43,24 +72,30 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		obj, err := c.clientset.CoreV1().ConfigMaps(c.namespace).Get(ctx, name, metav1.GetOptions{})
+		obj, err := c.cms.Lister().ConfigMaps(c.namespace).Get(name)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil
 			}
 			return err
 		}
+		if !hasRunnerLabels(obj.ObjectMeta) {
+			return nil
+		}
 		env.ConfigMap = obj
 		return nil
 	})
 
 	g.Go(func() error {
-		obj, err := c.clientset.CoreV1().Pods(c.namespace).Get(ctx, name, metav1.GetOptions{})
+		obj, err := c.pods.Lister().Pods(c.namespace).Get(name)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil
 			}
 			return err
+		}
+		if !hasRunnerLabels(obj.ObjectMeta) {
+			return nil
 		}
 		env.Pod = obj
 		return nil
@@ -87,12 +122,15 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 	})
 
 	g.Go(func() error {
-		obj, err := c.clientset.CoreV1().Services(c.namespace).Get(ctx, name, metav1.GetOptions{})
+		obj, err := c.svcs.Lister().Services(c.namespace).Get(name)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil
 			}
 			return err
+		}
+		if !hasRunnerLabels(obj.ObjectMeta) {
+			return nil
 		}
 		env.Service = obj
 		return nil
@@ -109,8 +147,38 @@ func (c *Client) GetEnv(ctx context.Context, name string) (*Env, error) {
 	return env, nil
 }
 
+func hasRunnerLabels(meta metav1.ObjectMeta) bool {
+	return meta.Labels[ephconfig.LabelAppKey] == ephconfig.LabelAppValueEphemerator &&
+		meta.Labels[ephconfig.LabelNameKey] == ephconfig.LabelNameValueEphrunner
+}
+
+type slackMessage struct {
+	Text string `json:"text"`
+}
+
+// Post a slack message and ignore the result.
+func (c *Client) maybePostSlackMessage(msg string) {
+	if c.slackWebhook == "" {
+		return
+	}
+	slackMsg := slackMessage{Text: msg}
+	content, err := json.Marshal(slackMsg)
+	if err != nil {
+		return
+	}
+
+	resp, err := http.Post(c.slackWebhook, "application/json",
+		bytes.NewBuffer(content))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+}
+
 // Delete the configuration for the env.
 func (c *Client) DeleteEnv(ctx context.Context, name string) error {
+	c.maybePostSlackMessage(fmt.Sprintf("Deleting env: %s", name))
+
 	// Make sure we're not deleting a configmap for a non-runner.
 	current, err := c.clientset.CoreV1().ConfigMaps(c.namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -120,8 +188,7 @@ func (c *Client) DeleteEnv(ctx context.Context, name string) error {
 		return err
 	}
 
-	if current.Labels[ephconfig.LabelAppKey] != ephconfig.LabelAppValueEphemerator ||
-		current.Labels[ephconfig.LabelNameKey] != ephconfig.LabelNameValueEphrunner {
+	if !hasRunnerLabels(current.ObjectMeta) {
 		// Make sure we don't overwrite a configmap for non-runners.
 		return fmt.Errorf("conflict with existing env: %s", name)
 	}
@@ -131,6 +198,8 @@ func (c *Client) DeleteEnv(ctx context.Context, name string) error {
 
 // Set the configuration for the env.
 func (c *Client) SetEnvSpec(ctx context.Context, name string, spec ephconfig.EnvSpec) error {
+	c.maybePostSlackMessage(fmt.Sprintf("Updating env %s: %+v", name, spec))
+
 	desired := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -159,8 +228,7 @@ func (c *Client) SetEnvSpec(ctx context.Context, name string, spec ephconfig.Env
 		return err
 	}
 
-	if current.Labels[ephconfig.LabelAppKey] != ephconfig.LabelAppValueEphemerator ||
-		current.Labels[ephconfig.LabelNameKey] != ephconfig.LabelNameValueEphrunner {
+	if !hasRunnerLabels(current.ObjectMeta) {
 		// Make sure we don't overwrite a configmap for non-runners.
 		return fmt.Errorf("conflict with existing env: %s", name)
 	}
