@@ -105,7 +105,7 @@
         {{if and .env.PodLogs (not $isDeleting)}}
         <div>Setup Logs:</div>
 
-        <code class="logpane"><pre>{{.env.PodLogs.String}}</pre></code>
+        <code class="logpane"><pre>{{.env.PodLogsWithoutColor}}</pre></code>
         {{end}}
           
         <form method="POST" action="/delete">

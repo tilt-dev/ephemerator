@@ -3,6 +3,7 @@ module github.com/tilt-dev/ephemerator
 go 1.17
 
 require (
+	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/google/go-github/v42 v42.0.0
 	github.com/gorilla/mux v1.8.0
 	github.com/stretchr/testify v1.7.0

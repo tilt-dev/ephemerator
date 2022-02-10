@@ -418,10 +418,17 @@ func (r *Reconciler) deletePod(ctx context.Context, pod *v1.Pod) error {
 	if needsClusterTeardown {
 		err := client.IgnoreNotFound(
 			r.exec(ctx, pod,
-				[]string{"ctlptl", "delete", "cluster", "kind-kind", "--ignore-not-found"},
+				[]string{"k3d", "cluster", "delete", "--all"},
 				ioutil.Discard, ioutil.Discard))
 		if err != nil {
 			return fmt.Errorf("deleting cluster: %v", err)
+		}
+		err = client.IgnoreNotFound(
+			r.exec(ctx, pod,
+				[]string{"k3d", "registry", "delete", "--all"},
+				ioutil.Discard, ioutil.Discard))
+		if err != nil {
+			return fmt.Errorf("deleting registry: %v", err)
 		}
 	}
 	err := client.IgnoreNotFound(r.client().Delete(ctx, pod))
