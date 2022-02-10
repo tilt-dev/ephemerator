@@ -83,11 +83,13 @@
 
         <div>Status:</div>
         
+        {{$isDeleting := false}}
         <ul>
           <li>Spec: <b>{{if .env.ConfigMap}}OK{{else}}Missing{{end}}</b></li>
           <li>Cluster: <b>
             {{if .env.Pod}}
-              {{if .env.Pod.ObjectMeta.DeletionTimestamp}}
+            {{if .env.Pod.ObjectMeta.DeletionTimestamp}}
+                {{$isDeleting = true}}
                 Deleting
               {{else if .env.Pod.Status.Phase}}
                 {{.env.Pod.Status.Phase}}
@@ -100,9 +102,9 @@
           <li>Expiration: <b class="expiration">{{if .env.ConfigMap}}{{if .env.ConfigMap.Data.expiration}}{{.env.ConfigMap.Data.expiration}}{{else}}Pending{{end}}{{else}}Pending{{end}}</b> <b class="expirationCountdown"></b></li>
         </ul>
 
+        {{if and .env.PodLogs (not $isDeleting)}}
         <div>Setup Logs:</div>
 
-        {{if .env.PodLogs}}
         <code class="logpane"><pre>{{.env.PodLogs.String}}</pre></code>
         {{end}}
           
