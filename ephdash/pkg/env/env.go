@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/acarl005/stripansi"
 	"github.com/tilt-dev/ephemerator/ephconfig"
 	"golang.org/x/sync/errgroup"
 
@@ -29,6 +30,10 @@ type Env struct {
 	Pod       *v1.Pod
 	Service   *v1.Service
 	PodLogs   *bytes.Buffer
+}
+
+func (e *Env) PodLogsWithoutColor() string {
+	return stripansi.Strip(e.PodLogs.String())
 }
 
 type Client struct {
