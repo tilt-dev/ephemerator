@@ -21,3 +21,9 @@ gateway:
   scheme: http
   host: preview.localhost
   tlsSecretName: ""
+
+k3d:
+  imageLoadbalancer: "rancher/k3d-proxy"
+  imageTools: "rancher/k3d-tools"
+  imageRegistry: "registry:2"
+  imageK3s: "rancher/k3s:v1.22.6-k3s1"

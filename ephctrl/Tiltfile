@@ -46,7 +46,13 @@ docker_build_with_restart(
   ]
 )
 
-helm_set = []
+helm_set = [
+  # Mirror the k3d images because we've been having issues with them on CI.
+  "k3d.imageRegistry=gcr.io/windmill-public-containers/registry:2",
+  "k3d.imageK3s=gcr.io/windmill-public-containers/k3s:v1.22.6-k3s1",
+  "k3d.imageTools=gcr.io/windmill-public-containers/k3d-tools",
+  "k3d.imageLoadbalancer=gcr.io/windmill-public-containers/k3d-proxy"
+]
 
 if USE_OAUTH2:
   helm_set += ['auth.enabled=true']

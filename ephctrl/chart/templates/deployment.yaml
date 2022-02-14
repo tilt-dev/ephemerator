@@ -36,6 +36,14 @@ spec:
             configMapKeyRef:
               name: ephconfig
               key: gatewayHost
+        - name: 'K3D_IMAGE_REGISTRY'
+          value: "{{ .Values.k3d.imageRegistry }}"
+        - name: 'K3D_IMAGE_K3S'
+          value: "{{ .Values.k3d.imageK3s }}"
+        - name: 'K3D_IMAGE_LOADBALANCER'
+          value: "{{ .Values.k3d.imageLoadbalancer }}"
+        - name: 'K3D_IMAGE_TOOLS'
+          value: "{{ .Values.k3d.imageTools }}"
           
         securityContext:
           allowPrivilegeEscalation: false
