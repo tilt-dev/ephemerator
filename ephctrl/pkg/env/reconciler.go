@@ -320,6 +320,22 @@ func (r *Reconciler) createPod(ctx context.Context, cm *v1.ConfigMap) (*v1.Pod, 
 						Name:  "TILT_UPPER_BRANCH",
 						Value: spec.Branch,
 					},
+					{
+						Name:  "K3D_IMAGE_REGISTRY",
+						Value: os.Getenv("K3D_IMAGE_REGISTRY"),
+					},
+					{
+						Name:  "K3D_IMAGE_K3S",
+						Value: os.Getenv("K3D_IMAGE_K3S"),
+					},
+					{
+						Name:  "K3D_IMAGE_LOADBALANCER",
+						Value: os.Getenv("K3D_IMAGE_LOADBALANCER"),
+					},
+					{
+						Name:  "K3D_IMAGE_TOOLS",
+						Value: os.Getenv("K3D_IMAGE_TOOLS"),
+					},
 				},
 				ReadinessProbe: &v1.Probe{
 					ProbeHandler: v1.ProbeHandler{

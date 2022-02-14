@@ -40,7 +40,11 @@ helm upgrade --install ephctrl ./chart --namespace=ephemerator \
      --set=auth.enabled=true \
      --set=gateway.scheme=https \
      --set=gateway.host=preview.tilt.build \
-     --set=gateway.tlsSecretName=preview-tilt-build
+     --set=gateway.tlsSecretName=preview-tilt-build \
+     --set=k3d.imageRegistry="gcr.io/windmill-public-containers/registry:2" \
+     --set=k3d.imageK3s="gcr.io/windmill-public-containers/k3s:v1.22.6-k3s1" \
+     --set=k3d.imageTools="gcr.io/windmill-public-containers/k3d-tools" \
+     --set=k3d.imageLoadbalancer="gcr.io/windmill-public-containers/k3d-proxy"
 popd
 
 pushd ephdash
