@@ -149,8 +149,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	result := cmResult
-	if svcResult.RequeueAfter < result.RequeueAfter {
+	if svcResult.RequeueAfter > 0 && svcResult.RequeueAfter < result.RequeueAfter {
 		result.RequeueAfter = svcResult.RequeueAfter
+	}
+
+	if result.RequeueAfter > 0 {
+		log.Info(fmt.Sprintf("requeueing after: %s", result.RequeueAfter))
 	}
 
 	return result, nil
