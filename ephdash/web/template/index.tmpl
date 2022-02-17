@@ -102,8 +102,10 @@
           <li>Expiration: <b class="expiration">{{if .env.ConfigMap}}{{if .env.ConfigMap.Data.expiration}}{{.env.ConfigMap.Data.expiration}}{{else}}Pending{{end}}{{else}}Pending{{end}}</b> <b class="expirationCountdown"></b></li>
         </ul>
 
+        <div>(This is a Web 1.0 app! Please refresh the page for status updates.)</div>
+
         {{if and .env.PodLogs (not $isDeleting)}}
-        <div>Setup Logs:</div>
+        <h3>Setup Logs:</h3>
 
         <code class="logpane"><pre>{{.env.PodLogsWithoutColor}}</pre></code>
         {{end}}
