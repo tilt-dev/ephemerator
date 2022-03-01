@@ -544,9 +544,12 @@ func (r *Reconciler) determinePorts(uiResourceList *v1alpha1.UIResourceList) []v
 	for _, uiResource := range uiResourceList.Items {
 		for _, link := range uiResource.Status.EndpointLinks {
 			var port int32
-			_, err := fmt.Sscanf(link.URL, "http://0.0.0.0:%d/", &port)
+			_, err := fmt.Sscanf(link.URL, "http://0.0.0.0:%d", &port)
 			if err != nil || port == 0 {
-				continue
+				_, err := fmt.Sscanf(link.URL, "http://localhost:%d", &port)
+				if err != nil || port == 0 {
+					continue
+				}
 			}
 			safeAdd(uiResource.Name, port)
 		}

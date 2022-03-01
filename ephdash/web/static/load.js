@@ -37,8 +37,10 @@ function onRepoChange() {
 function onBranchChange() {
   let repoSelect = document.querySelector('#repo')
   let branchSelect = document.querySelector('#branch')
+  let pathSelect = document.querySelector('#path')
   var params = new URLSearchParams(window.location.search)
   params.set("repo", repoSelect.value)
   params.set("branch", branchSelect.value)
+  params.set("path", pathSelect.value)
   window.location.search = params.toString()
 }
