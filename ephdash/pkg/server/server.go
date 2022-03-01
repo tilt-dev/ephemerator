@@ -234,7 +234,8 @@ func (s *Server) branchOptions(r *http.Request, client *github.Client, repoURL s
 	branchList := []*github.Branch{&github.Branch{Name: &defaultBranchName}}
 	owner, repoName := s.toGithubOwnerAndRepo(repoURL)
 	if repoName != "" {
-		branches, _, err := client.Repositories.ListBranches(r.Context(), owner, repoName, nil)
+		branches, _, err := client.Repositories.ListBranches(r.Context(), owner, repoName,
+			&github.BranchListOptions{ListOptions: github.ListOptions{PerPage: 100}})
 		if err != nil {
 			log.Printf("error: fetching branches %s/%s: %v", owner, repoName, err)
 		} else {
@@ -283,6 +284,7 @@ func (s *Server) pathOptions(r *http.Request, client *github.Client, repoURL, sh
 		return nil
 	}
 
+	qPath := r.URL.Query().Get("path")
 	tree, _, err := client.Git.GetTree(r.Context(), owner, repoName, sha, true /* recursive */)
 	if err != nil {
 		log.Printf("error: fetching tree %s/%s: %v", owner, repoName, err)
@@ -300,8 +302,9 @@ func (s *Server) pathOptions(r *http.Request, client *github.Client, repoURL, sh
 		basename := filepath.Base(path)
 		if basename == "Tiltfile" || strings.HasSuffix(basename, ".tiltfile") {
 			result = append(result, FormOption{
-				Value: path,
-				Name:  path,
+				Value:    path,
+				Name:     path,
+				Selected: path == qPath,
 			})
 		}
 	}

@@ -16,4 +16,5 @@ data:
     - tilt-example-java
     - tilt-example-go
     - tilt-example-nodejs
+    - tilt
   

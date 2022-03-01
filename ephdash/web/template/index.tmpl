@@ -48,7 +48,7 @@
           <label for="path">Path:</label>
           <select name="path" id="path">
             {{range .pathOptions}}
-            <option value="{{.Value}}">{{.Name}}</option>
+            <option value="{{.Value}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>
             {{end}}
           </select>
         </div>
